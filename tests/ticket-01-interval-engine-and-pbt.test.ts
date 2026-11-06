@@ -4,7 +4,6 @@ import {
   CLAUSE_CLOCK_SEEDED_SCENARIOS,
   clipIntervalsToWindow,
   evaluateBitmapOracle,
-  formatMachineReadableFooter,
   getSeededScenario,
   intersectIntervals,
   mergeIntervals,
@@ -69,23 +68,12 @@ test('Role 1.1: Hero scenario (hero-overlap-splicer) folds overlapping incidents
   assert.equal(receipt.naiveComparison.overchargePreventedCents, 350000);
   assert.equal(receipt.naiveComparison.overcountedMinutes, 45);
 
-  // Readable proposalVersionKey & machine-readable footer (zero SHA-256/MD5)
+  // Readable proposalVersionKey (zero SHA-256/MD5)
   assert.equal(
     receipt.proposalVersionKey,
     'CCLOCK-JSM-402-2026-11-NET75M-CRED150000-VEND90000',
   );
-  assert.equal(
-    receipt.machineReadableFooter,
-    formatMachineReadableFooter(receipt),
-  );
-  assert.match(
-    receipt.machineReadableFooter,
-    /^\[ClauseClock Receipt #.+ \| issue=JSM-402 \| month=2026-11 \(America\/New_York\) \| mode=SEEDED \| netOutage=75m \| credit=\$1500\.00 \| vendorSplit=\$900\.00 vendor \/ \$600\.00 internal\]$/,
-  );
   assert.ok(receipt.replayCommand.includes('hero-overlap-splicer'));
-  assert.ok(receipt.markdownExports.customerCreditReceiptMd.includes('JSM-402'));
-  assert.ok(receipt.markdownExports.vendorRecoveryClaimMd.includes('CloudEdge Transit'));
-  assert.ok(receipt.markdownExports.confluenceLedgerRowMd.includes('CCLOCK-JSM-402-2026-11-NET75M-CRED150000-VEND90000'));
 });
 
 test('Role 1.2: Cross-timezone boundary (cross-timezone-boundary) defaults missing timezone to UTC, clips pre-month minutes, and shifts under timezoneOverride', () => {

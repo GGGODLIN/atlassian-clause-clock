@@ -4,7 +4,6 @@ import type {
   CalculationReceipt,
   ClauseClockScenario,
   HalfOpenInterval,
-  MarkdownExports,
   NaiveSpreadsheetComparison,
   ReconcileOptions,
   SlaCreditTier,
@@ -15,25 +14,10 @@ import type {
 
 export const MAX_BILLING_MONTH_MINUTES = 44640;
 
-const KNOWN_TIMEZONE_OFFSETS_MINUTES: Readonly<Record<string, number>> = {
-  UTC: 0,
-  'Etc/UTC': 0,
-  GMT: 0,
-  'America/New_York': -300,
-  'America/Chicago': -360,
-  'America/Denver': -420,
-  'America/Los_Angeles': -480,
-  'Europe/London': 0,
-  'Europe/Berlin': 60,
-  'Asia/Tokyo': 540,
-  'Asia/Taipei': 480,
-  'Australia/Sydney': 660,
-};
-
 export function resolveTimezoneOffsetMinutes(timezone: string): number {
   const normalized = timezone.trim();
-  if (normalized in KNOWN_TIMEZONE_OFFSETS_MINUTES) {
-    return KNOWN_TIMEZONE_OFFSETS_MINUTES[normalized]!;
+  if (!normalized || normalized === 'UTC' || normalized === 'Etc/UTC' || normalized === 'GMT') {
+    return 0;
   }
   try {
     const refDate = new Date(Date.UTC(2026, 10, 1, 12, 0, 0));
@@ -623,74 +607,6 @@ function apportionVendorAndInternalCents(params: {
   };
 }
 
-export function formatMachineReadableFooter(receipt: CalculationReceipt): string {
-  const modeLabel = receipt.provenance.sourceMode === 'LIVE_GRAPH_AND_REST' ? 'LIVE' : 'SEEDED';
-  const creditDollars = (receipt.mathBreakdown.newCreditCents / 100).toFixed(2);
-  const vendorDollars = (receipt.mathBreakdown.vendorTotalApportionedCents / 100).toFixed(2);
-  const internalDollars = (receipt.mathBreakdown.internalAbsorbedCents / 100).toFixed(2);
-  return `[ClauseClock Receipt #${receipt.receiptId} | issue=${receipt.claimKey} | month=${receipt.billingMonth} (${receipt.billingTimezone}) | mode=${modeLabel} | netOutage=${receipt.mathBreakdown.netOutageMinutes}m | credit=$${creditDollars} | vendorSplit=$${vendorDollars} vendor / $${internalDollars} internal]`;
-}
-
-function buildMarkdownExports(params: {
-  receiptId: string;
-  proposalVersionKey: string;
-  scenario: ClauseClockScenario;
-  billingTimezone: string;
-  mathBreakdown: CalculationReceipt['mathBreakdown'];
-  vendorApportionments: readonly VendorApportionmentRow[];
-  naiveComparison: NaiveSpreadsheetComparison;
-}): MarkdownExports {
-  const {
-    receiptId,
-    proposalVersionKey,
-    scenario,
-    billingTimezone,
-    mathBreakdown,
-    vendorApportionments,
-    naiveComparison,
-  } = params;
-  const contract = scenario.contract;
-  const formatUsd = (cents: number): string => `$${(cents / 100).toFixed(2)}`;
-
-  const customerCreditReceiptMd = [
-    `### ClauseClock Customer Service Credit Receipt (${receiptId})`,
-    `- **Claim Issue**: \`${contract.claimKey}\` · **Customer**: ${contract.customerName} (\`${contract.customerId}\`)`,
-    `- **Billing Window**: \`${contract.billingMonth}\` (\`${billingTimezone}\`, ${contract.billingMonthTotalMinutes} total minutes)`,
-    `- **Proposal Version Key**: \`${proposalVersionKey}\``,
-    `- **Interval Splicing**: Raw Incidents \`${mathBreakdown.rawIncidentMinutes}m\` -> Merged Union \`${mathBreakdown.mergedIncidentMinutes}m\` -> Maintenance Deducted \`${mathBreakdown.maintenanceDeductedMinutes}m\` -> **Net Outage \`${mathBreakdown.netOutageMinutes}m\`**`,
-    `- **Monthly Uptime & Matched Tier**: \`${mathBreakdown.uptimePercentage.toFixed(4)}%\` -> \`${mathBreakdown.matchedTier.label}\` (\`${mathBreakdown.matchedTier.creditBps / 100}%\`)`,
-    `- **Credit Settlement**: Gross \`${formatUsd(mathBreakdown.grossCreditCents)}\` | Prior Approved \`${formatUsd(mathBreakdown.priorApprovedCents)}\` | Remaining Monthly Cap \`${formatUsd(mathBreakdown.remainingCapBeforeCents)}\` -> **Net Credit \`${formatUsd(mathBreakdown.newCreditCents)}\`**`,
-    `- **Spreadsheet Overcharge Prevented**: \`${formatUsd(naiveComparison.overchargePreventedCents)}\` (Naive \`${naiveComparison.rawIncidentSumMinutes}m\` = \`${formatUsd(naiveComparison.naiveCreditCents)}\`)`,
-  ].join('\n');
-
-  const vendorLines =
-    vendorApportionments.length === 0
-      ? ['| _None_ | _N/A_ | 0m | 0.00% | $0.00 |']
-      : vendorApportionments.map(
-          (v) =>
-            `| \`${v.vendorId}\` (${v.vendorName}) | \`${v.componentKey}\` | ${v.overlapMinutes}m | ${(v.shareBps / 100).toFixed(2)}% | ${formatUsd(v.apportionedCents)} |`,
-        );
-
-  const vendorRecoveryClaimMd = [
-    `### ClauseClock Upstream Vendor Recovery Apportionment (${contract.claimKey})`,
-    `- **Proposal Version Key**: \`${proposalVersionKey}\``,
-    `- **Customer Net Outage**: \`${mathBreakdown.netOutageMinutes}m\` · **Net Credit Liability**: \`${formatUsd(mathBreakdown.newCreditCents)}\``,
-    `- **Vendor Recovery Total**: \`${formatUsd(mathBreakdown.vendorTotalApportionedCents)}\` (${mathBreakdown.vendorCoveredMinutes}m) · **Internal Absorption**: \`${formatUsd(mathBreakdown.internalAbsorbedCents)}\` (${mathBreakdown.internalAbsorbedMinutes}m)`,
-    '',
-    '| Vendor | Component | Overlap | Share | Apportioned Recovery |',
-    '| --- | --- | --- | --- | --- |',
-    ...vendorLines,
-  ].join('\n');
-
-  const confluenceLedgerRowMd = `| ${contract.claimKey} | ${contract.customerName} | ${contract.billingMonth} (${billingTimezone}) | ${mathBreakdown.netOutageMinutes}m (${mathBreakdown.uptimePercentage.toFixed(4)}%) | ${formatUsd(mathBreakdown.newCreditCents)} | ${formatUsd(mathBreakdown.vendorTotalApportionedCents)} vendor / ${formatUsd(mathBreakdown.internalAbsorbedCents)} internal | \`${proposalVersionKey}\` |`;
-
-  return {
-    customerCreditReceiptMd,
-    vendorRecoveryClaimMd,
-    confluenceLedgerRowMd,
-  };
-}
-
 export function reconcileClauseClock(
   scenario: ClauseClockScenario,
   options?: ReconcileOptions,
@@ -874,19 +790,9 @@ export function reconcileClauseClock(
     internalAbsorbedCents,
   };
 
-  const markdownExports = buildMarkdownExports({
-    receiptId,
-    proposalVersionKey,
-    scenario,
-    billingTimezone,
-    mathBreakdown,
-    vendorApportionments,
-    naiveComparison,
-  });
-
   const replayCommand = `npx tsx -e "import { getSeededScenario, reconcileClauseClock } from './src/core/index.ts'; console.log(JSON.stringify(reconcileClauseClock(getSeededScenario('${scenario.scenarioId}'), { timezoneOverride: '${billingTimezone}' })))"`;
 
-  const receiptWithoutFooter: CalculationReceipt = {
+  return {
     receiptId,
     proposalVersionKey,
     scenarioId: scenario.scenarioId,
@@ -919,13 +825,6 @@ export function reconcileClauseClock(
     naiveComparison,
     discardedAiAmountOverrides,
     provenance,
-    markdownExports,
-    machineReadableFooter: '',
     replayCommand,
-  };
-
-  return {
-    ...receiptWithoutFooter,
-    machineReadableFooter: formatMachineReadableFooter(receiptWithoutFooter),
   };
 }

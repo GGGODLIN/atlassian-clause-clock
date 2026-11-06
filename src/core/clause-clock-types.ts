@@ -1,4 +1,4 @@
-export type ClauseClockSourceMode = 'LIVE_GRAPH_AND_REST' | 'SEEDED_FIXTURE';
+export type ClauseClockSourceMode = 'SEEDED_FIXTURE';
 
 export type ContractApprovalStatus = 'APPROVED' | 'DRAFT';
 
@@ -150,12 +150,6 @@ export interface MathBreakdown {
   internalAbsorbedCents: number;
 }
 
-export interface MarkdownExports {
-  customerCreditReceiptMd: string;
-  vendorRecoveryClaimMd: string;
-  confluenceLedgerRowMd: string;
-}
-
 export interface CalculationReceipt {
   receiptId: string;
   proposalVersionKey: string;
@@ -175,8 +169,6 @@ export interface CalculationReceipt {
   naiveComparison: NaiveSpreadsheetComparison;
   discardedAiAmountOverrides: string[];
   provenance: SourceProvenanceManifest;
-  markdownExports: MarkdownExports;
-  machineReadableFooter: string;
   replayCommand: string;
 }
 
