@@ -49,14 +49,7 @@ export function ClauseClockWorkbench({
     () => selectPreviewReceipt({ scenarioId, timezoneOverride, disabledIncidentIds, disabledMaintenanceIds }),
     [scenarioId, timezoneOverride, disabledIncidentIds, disabledMaintenanceIds],
   );
-  const waterfall = useMemo(
-    () =>
-      buildIntervalWaterfall(scenario, preview, {
-        incidentIds: disabledIncidentIds,
-        maintenanceIds: disabledMaintenanceIds,
-      }),
-    [scenario, preview, disabledIncidentIds, disabledMaintenanceIds],
-  );
+  const waterfall = useMemo(() => buildIntervalWaterfall(scenario, preview), [scenario, preview]);
   const mcpDefaultArguments = useMemo(
     () =>
       selectMcpDefaultArguments(

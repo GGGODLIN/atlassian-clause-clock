@@ -46,8 +46,6 @@ export const JUDGE_CHECKLIST_STEPS: readonly ChecklistStep[] = [
   { id: 'reset-demo', title: 'Reset the demo', hint: 'Roll the write-back back to READY for the next judge.' },
 ];
 
-export const DEFAULT_APPROVER_ID = 'USR-SUPPORT-LEAD';
-
 // The seeded Meridian claim omits its contract timezone; Los Angeles is the boundary its scenario brief compares against UTC.
 const MISSING_TIMEZONE_ALTERNATIVES = ['America/Los_Angeles'] as const;
 
@@ -117,15 +115,13 @@ export interface CommitGate {
 
 const NO_APPROVAL: WorkbenchApproval = { checked: false, proposalVersionKey: null };
 
-const CHECKLIST_ORDER = JUDGE_CHECKLIST_STEPS.map((step) => step.id);
-
 export function createInitialWorkbenchState(scenarioId?: string): WorkbenchState {
   return {
     scenarioId: getSeededScenario(scenarioId).scenarioId,
     timezoneOverride: null,
     disabledIncidentIds: [],
     disabledMaintenanceIds: [],
-    approverId: DEFAULT_APPROVER_ID,
+    approverId: '',
     approval: NO_APPROVAL,
     financeOverrideReason: '',
     errorBanner: null,
@@ -137,11 +133,9 @@ export function createInitialWorkbenchState(scenarioId?: string): WorkbenchState
 }
 
 function completeStep(state: WorkbenchState, stepId: ChecklistStepId): WorkbenchState {
-  if (state.completedSteps.includes(stepId)) {
-    return state;
-  }
-  const completed = new Set<ChecklistStepId>([...state.completedSteps, stepId]);
-  return { ...state, completedSteps: CHECKLIST_ORDER.filter((id) => completed.has(id)) };
+  return state.completedSteps.includes(stepId)
+    ? state
+    : { ...state, completedSteps: [...state.completedSteps, stepId] };
 }
 
 // Any input that can move proposalVersionKey voids the human approval and the banner describing the old proposal (F1).

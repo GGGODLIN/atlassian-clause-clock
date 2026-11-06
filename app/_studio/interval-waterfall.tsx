@@ -13,7 +13,7 @@ const TONE_CLASSES: Record<WaterfallTrack['tone'], string> = {
 };
 
 const GHOST_CLASSES: Record<WaterfallTrack['tone'], string> = {
-  raw: 'cc-ghost cc-ghost-excluded',
+  raw: 'cc-ghost',
   union: 'cc-ghost',
   deduction: 'cc-ghost cc-ghost-deduction',
   net: 'cc-ghost',

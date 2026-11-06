@@ -23,7 +23,6 @@ export interface WaterfallBar {
   leftPct: number;
   widthPct: number;
   vendorIndex: number | null;
-  outsideWindowMinutes: number;
   row: number;
 }
 
@@ -55,17 +54,8 @@ export interface IntervalWaterfallModel {
   tracks: WaterfallTrack[];
 }
 
-export interface WaterfallExclusions {
-  incidentIds: readonly string[];
-  maintenanceIds: readonly string[];
-}
-
 const TICK_STEPS = [5, 10, 15, 30, 60, 120, 180, 360, 720, 1440] as const;
 const MAX_TICKS = 8;
-
-function roundPct(value: number): number {
-  return Math.round(value * 1000) / 1000;
-}
 
 function shiftInterval(interval: HalfOpenInterval, shiftMinutes: number): HalfOpenInterval {
   return {
@@ -99,20 +89,14 @@ function packRows(bars: readonly WaterfallBar[]): { segments: WaterfallBar[]; ro
 export function buildIntervalWaterfall(
   scenario: ClauseClockScenario,
   receipt: CalculationReceipt,
-  exclusions: WaterfallExclusions,
 ): IntervalWaterfallModel {
   const contractTimezone = scenario.contract.billingTimezone?.trim() || 'UTC';
   const shiftMinutes =
     resolveTimezoneOffsetMinutes(contractTimezone) - resolveTimezoneOffsetMinutes(receipt.billingTimezone);
-  const windowEnd = receipt.inputsSnapshot.billingMonthTotalMinutes;
   const ledger = receipt.intervalLedger;
   const math = receipt.mathBreakdown;
 
   const rawIncidents = ledger.rawIncidents.map((interval) => shiftInterval(interval, shiftMinutes));
-  const excludedIncidentIds = new Set(exclusions.incidentIds);
-  const excludedIncidents = scenario.incidents
-    .filter((interval) => excludedIncidentIds.has(interval.id))
-    .map((interval) => shiftInterval(interval, shiftMinutes));
   const maintenanceWindows = scenario.maintenanceWindows.map((interval) => shiftInterval(interval, shiftMinutes));
   const vendorWindows = scenario.vendorFeeds.flatMap((feed, vendorIndex) =>
     feed.intervals.map((interval) => ({ vendorIndex, interval: shiftInterval(interval, shiftMinutes) })),
@@ -120,7 +104,6 @@ export function buildIntervalWaterfall(
 
   const extents = [
     ...rawIncidents,
-    ...excludedIncidents,
     ...maintenanceWindows,
     ...vendorWindows.map((entry) => entry.interval),
     ...ledger.mergedIncidents,
@@ -132,7 +115,7 @@ export function buildIntervalWaterfall(
   const domainStartMinute = Math.floor((lowest - padding) / step) * step;
   const domainEndMinute = Math.ceil((highest + padding) / step) * step;
   const span = Math.max(1, domainEndMinute - domainStartMinute);
-  const toPct = (minute: number): number => roundPct(((minute - domainStartMinute) / span) * 100);
+  const toPct = (minute: number): number => ((minute - domainStartMinute) / span) * 100;
 
   const toBar = (
     interval: HalfOpenInterval,
@@ -144,11 +127,8 @@ export function buildIntervalWaterfall(
     startMinute: interval.startMinute,
     endMinute: interval.endMinute,
     leftPct: toPct(interval.startMinute),
-    widthPct: roundPct(((interval.endMinute - interval.startMinute) / span) * 100),
+    widthPct: ((interval.endMinute - interval.startMinute) / span) * 100,
     vendorIndex,
-    outsideWindowMinutes:
-      Math.max(0, Math.min(interval.endMinute, 0) - interval.startMinute) +
-      Math.max(0, interval.endMinute - Math.max(interval.startMinute, windowEnd)),
     row: 0,
   });
 
@@ -180,7 +160,7 @@ export function buildIntervalWaterfall(
         tone: 'raw',
         totalMinutes: receipt.naiveComparison.rawIncidentSumMinutes,
         totalLabel: formatMinutes(receipt.naiveComparison.rawIncidentSumMinutes),
-        ghosts: excludedIncidents.map((interval) => toBar(interval, 'excluded')),
+        ghosts: [],
       },
       rawIncidents.map((interval) => toBar(interval, 'raw')),
     ),

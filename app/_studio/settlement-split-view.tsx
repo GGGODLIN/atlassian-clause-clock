@@ -72,7 +72,6 @@ function FinanceSubscriberPanel({ hostPort, claimKey }: FinanceSubscriberPanelPr
   const [finance, receive] = useReducer(financeSubscriberReducer, EMPTY_FINANCE_STATE);
   useEffect(() => hostPort.subscribeSettlementChannel(receive), [hostPort, receive]);
   const view = selectFinanceSettlement(finance, claimKey);
-  const latest = finance.feed[0] ?? null;
 
   return (
     <section data-testid="finance-view" aria-labelledby="cc-finance-heading" className="cc-case flex flex-col gap-4 rounded-[2rem] p-5 @3xl:p-6">
@@ -91,15 +90,18 @@ function FinanceSubscriberPanel({ hostPort, claimKey }: FinanceSubscriberPanelPr
 
       <div className="relative h-7 overflow-hidden rounded-full border border-case-rule bg-case-3/60">
         <span aria-hidden className="absolute inset-y-1/2 left-3 right-3 h-px bg-case-rule" />
-        {latest ? (
+        {view.lastEventId ? (
           <span
-            key={latest.sequence}
+            key={view.lastEventId}
             aria-hidden
             className="cc-pulse absolute top-1/2 size-2.5 -translate-y-1/2 rounded-full bg-lume shadow-[0_0_14px_rgb(217_242_106/0.9)]"
           />
         ) : null}
-        <span className="absolute inset-0 flex items-center justify-center font-mono text-[10px] text-case-muted">
-          {latest ? `${latest.eventId} · ${latest.status} · via ${latest.origin}` : 'listening for broadcasts…'}
+        <span
+          aria-live="polite"
+          className="absolute inset-0 flex items-center justify-center font-mono text-[10px] text-case-muted"
+        >
+          {view.lastEventId ? `${view.lastEventId} · ${view.status}` : 'listening for broadcasts…'}
         </span>
       </div>
 
@@ -112,22 +114,6 @@ function FinanceSubscriberPanel({ hostPort, claimKey }: FinanceSubscriberPanelPr
           {claimKey} has no settled receipt on this page yet. A commit from Support or from a Rovo MCP client lands here.
         </p>
       )}
-
-      <ol aria-live="polite" aria-label="Realtime settlement feed" className="flex flex-col gap-1.5">
-        {finance.feed.map((entry) => (
-          <li
-            key={entry.sequence}
-            className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg border border-case-rule px-3 py-2 font-mono text-[11px] text-case-muted"
-          >
-            <span className={entry.status === 'SETTLED' ? 'text-lume' : 'text-case-text'}>
-              {entry.claimKey} · {entry.status}
-            </span>
-            <span>
-              {formatUsdCents(entry.newCreditCents)} · vendor {formatUsdCents(entry.vendorTotalApportionedCents)} · {entry.origin}
-            </span>
-          </li>
-        ))}
-      </ol>
     </section>
   );
 }
@@ -246,7 +232,8 @@ export function SettlementSplitView({
                 type="text"
                 value={approverId}
                 onChange={(event) => onApproverChange(event.target.value)}
-                className="mt-1 w-full rounded-lg border border-ink/20 bg-dial px-3 py-2 font-mono text-xs"
+                placeholder="e.g. USR-SUPPORT-LEAD"
+                className="mt-1 w-full rounded-lg border border-ink/20 bg-dial px-3 py-2 font-mono text-xs placeholder:text-steel/70"
               />
             </div>
             <div className="flex items-start gap-3 rounded-xl border border-ink/15 bg-dial p-3">

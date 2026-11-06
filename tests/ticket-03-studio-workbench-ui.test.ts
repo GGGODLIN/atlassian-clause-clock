@@ -396,7 +396,12 @@ test('AC3 (Story 2 & 3): edge-case banners cover the missing timezone switcher, 
   assert.equal('disabled' in getByTestId(draft, 'commit-settlement-button').attributes, true);
   assert.equal(findAllByTestId(hero, 'banner-provisional-draft').length, 0);
 
-  const approvedDraft = approve(createInitialWorkbenchState('unapproved-contract-draft'));
+  const approvedDraft = approve(
+    workbenchReducer(createInitialWorkbenchState('unapproved-contract-draft'), {
+      type: 'SET_APPROVER',
+      approverId: 'USR-FINANCE-CONTROLLER',
+    }),
+  );
   assert.deepEqual(selectCommitGate(approvedDraft), {
     canCommit: false,
     blockers: ['FINANCE_OVERRIDE_REQUIRED'],
@@ -516,8 +521,8 @@ test('AC4 (Story 2 & 4, F5): confirming a settlement in the Support view updates
   assert.equal(supportView.settledReceipt?.mathBreakdown.newCreditCents, 150000);
 
   assert.deepEqual(
-    broadcasts.map((message) => [message.channel, message.origin, message.event.status]),
-    [['clause-clock-settlement-sync', 'workbench', 'SETTLED']],
+    broadcasts.map((message) => [message.channel, message.event.claimKey, message.event.status]),
+    [['clause-clock-settlement-sync', 'JSM-402', 'SETTLED']],
   );
   const financeView = selectFinanceSettlement(finance, 'JSM-402');
   assert.equal(financeView.status, 'SETTLED');
@@ -538,21 +543,11 @@ test('AC4 (Story 2 & 4, F5): confirming a settlement in the Support view updates
   assert.equal(selectSettlementView(support, 'JSM-402').settledReceipt, null);
 
   assert.deepEqual(
-    broadcasts.map((message) => [message.origin, message.event.status]),
-    [
-      ['workbench', 'SETTLED'],
-      ['workbench', 'READY'],
-    ],
+    broadcasts.map((message) => message.event.status),
+    ['SETTLED', 'READY'],
   );
   assert.equal(selectFinanceSettlement(finance, 'JSM-402').status, 'READY');
   assert.equal(selectFinanceSettlement(finance, 'JSM-402').settledReceipt, null);
-  assert.deepEqual(
-    finance.feed.map((entry) => [entry.claimKey, entry.status]),
-    [
-      ['JSM-402', 'READY'],
-      ['JSM-402', 'SETTLED'],
-    ],
-  );
 
   const resetEvaluation = await port.executeAction('evaluate-clause-clock', {
     scenarioId: 'hero-overlap-splicer',
@@ -633,11 +628,8 @@ test('AC5 (Story 2 & 5): the Rovo MCP & SKILL.md Live Inspector shows the live S
   assert.equal(commit.result?.settlementStatus, 'SETTLED');
   assert.equal(reset.result?.settlementStatus, 'READY');
   assert.deepEqual(
-    broadcasts.map((message) => [message.origin, message.event.status]),
-    [
-      ['mcp', 'SETTLED'],
-      ['mcp', 'READY'],
-    ],
+    broadcasts.map((message) => message.event.status),
+    ['SETTLED', 'READY'],
   );
 
   const receiptHtml = renderToStaticMarkup(createElement(McpExchangeReceipt, { exchange: commit }));

@@ -156,10 +156,6 @@
     border-color: rgb(143 170 240 / 0.6);
   }
 
-  .cc-ghost-excluded {
-    background: repeating-linear-gradient(90deg, transparent 0 6px, rgb(233 228 216 / 0.18) 6px 7px);
-  }
-
   .cc-ticket {
     --notch: 9px;
     background: var(--color-paper);

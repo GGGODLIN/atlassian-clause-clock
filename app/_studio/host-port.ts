@@ -37,11 +37,8 @@ export interface McpToolExchange {
   machineReadableFooter: string;
 }
 
-export type SettlementBroadcastOrigin = 'workbench' | 'mcp';
-
 export interface SettlementBroadcast {
   channel: typeof CLAUSE_CLOCK_SETTLEMENT_CHANNEL;
-  origin: SettlementBroadcastOrigin;
   event: ForgeRealtimeEvent;
   receipt: CalculationReceipt | null;
 }
@@ -110,13 +107,12 @@ export function createHttpClauseClockHostPort(options: HttpHostPortOptions = {})
   const baseUrl = options.baseUrl ?? '';
   const listeners = new Set<SettlementListener>();
 
-  const publish = (result: ClauseClockActionResult | null, origin: SettlementBroadcastOrigin): void => {
+  const publish = (result: ClauseClockActionResult | null): void => {
     if (!result?.ok || !result.realtimeEvent) {
       return;
     }
     const message: SettlementBroadcast = {
       channel: CLAUSE_CLOCK_SETTLEMENT_CHANNEL,
-      origin,
       event: result.realtimeEvent,
       receipt: result.receipt ?? null,
     };
@@ -141,7 +137,7 @@ export function createHttpClauseClockHostPort(options: HttpHostPortOptions = {})
         body: JSON.stringify({ actionKey, payload }),
       });
       const result = toActionResult(body);
-      publish(result, 'workbench');
+      publish(result);
       return result;
     },
 
@@ -159,7 +155,7 @@ export function createHttpClauseClockHostPort(options: HttpHostPortOptions = {})
         isRecord(body) && isRecord(body.result)
           ? (body.result as unknown as ClauseClockActionResult)
           : null;
-      publish(result, 'mcp');
+      publish(result);
       const envelopeFooter =
         isRecord(body) && typeof body.machineReadableFooter === 'string' ? body.machineReadableFooter : '';
       return {

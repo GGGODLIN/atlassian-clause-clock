@@ -41,11 +41,6 @@ export function billingClockParts(billingMonth: string, minute: number): Billing
   };
 }
 
-export function formatBillingClock(billingMonth: string, minute: number): string {
-  const parts = billingClockParts(billingMonth, minute);
-  return `${parts.isoDate} ${parts.time}`;
-}
-
 export function formatBillingRange(billingMonth: string, startMinute: number, endMinute: number): string {
   const start = billingClockParts(billingMonth, startMinute);
   const end = billingClockParts(billingMonth, endMinute);
