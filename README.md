@@ -12,7 +12,9 @@ When an enterprise customer submits a Jira Service Management (JSM) SLA Service 
 ## Visual Gallery
 
 ### Launch Film (`The Calibre Escape` — 45s 1080p30)
-- **Full 45-second narrated launch film**: [`docs/media/clause-clock-demo.mp4`](/docs/media/clause-clock-demo.mp4)
+- **YouTube Demo Video**: [https://youtu.be/xFWynDts-Ow](https://youtu.be/xFWynDts-Ow)
+- **Live Interactive Web Studio**: [https://atlassian-clause-clock.vercel.app](https://atlassian-clause-clock.vercel.app)
+- **Full 45-second narrated launch film (in-repo MP4)**: [`docs/media/clause-clock-demo.mp4`](/docs/media/clause-clock-demo.mp4)
 - **12-Beat Contact Sheet**: [`docs/media/stills.png`](/docs/media/stills.png)
 
 ![ClauseClock 45-Second Launch Film Contact Sheet](/docs/media/stills.png)
