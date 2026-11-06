@@ -26,3 +26,5 @@
 - [ ] `runClauseClockPbtAudit` executes Role 1 concrete checks, Role 2 `fc.property` checks for `P1..P3` against the independent `Uint8Array(44640)` minute-bitmap oracle (asserting aggregate `reachabilityWitnesses`: `overlapFoldedCount > 0`, `maintenanceDeductedCount > 0`, `capTruncatedCount > 0`, `multiVendorSplitCount > 0`), and Role 3 individual oracle calibration (`P1`, `P2`, `P3` each independently tripped by test-local mutations) plus deterministic counterexample replay comparing naive spreadsheet addition (`120m -> $5,000`) against `ClauseClock` (`75m -> $1,500`) — Source: Story 6
 
 ## Verification Log
+
+- 2026-11-06 Batch Execution & Testing Mode Approved: `execution_mode=subagent-driven` (`1.b`), `testing_mode=tdd` (`2.a`), `ticket_01_best_of_n=enabled` (`3.a`), covering Tickets `01`, `02`, `03` (`[user: "1.b\n2.a\n3.a"]`).

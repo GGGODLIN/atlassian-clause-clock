@@ -1,0 +1,13 @@
+node_modules/
+.next/
+out/
+build/
+dist/
+.worktrees/
+.claude/worktrees/
+.scratch/clause-clock/dispatch-opus-*/receipts/
+next-env.d.ts
+*.tsbuildinfo
+.DS_Store
+AGENTS.md
+CLAUDE.md
