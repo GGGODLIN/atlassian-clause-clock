@@ -1,0 +1,94 @@
+modules:
+  jira:issuePanel:
+    - key: clause-clock-issue-panel
+      resource: clause-clock-ui
+      resolver:
+        function: clause-clock-action-router
+      title: ClauseClock — SLA Interval Splicer & Vendor Recovery
+      icon: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
+
+  jira:globalPage:
+    - key: clause-clock-global-portfolio
+      resource: clause-clock-ui
+      resolver:
+        function: clause-clock-action-router
+      title: ClauseClock Portfolio Settlement Studio
+
+  rovo:agent:
+    - key: clause-clock-rovo-agent
+      name: ClauseClock SLA & Vendor Apportionment Agent
+      description: Deterministic SLA interval splicer and upstream vendor penalty recovery auditor for Jira Service Management claims.
+      prompt: >
+        You are ClauseClock, a deterministic SLA Service Credit and Upstream Vendor Apportionment agent.
+        Never estimate outage durations or dollar credits in prose. Always invoke evaluate-clause-clock
+        or run-pbt-audit first, present the exact integer-minute interval waterfall and Largest-Remainder
+        vendor split, require a human APPROVAL::<proposalVersionKey>::<approverId> token before invoking
+        commit-credit-settlement, and append the [ClauseClock Receipt #...] footer verbatim.
+      skills:
+        - clause-clock-rovo-skill
+      actions:
+        - evaluate-clause-clock
+        - run-pbt-audit
+        - commit-credit-settlement
+        - reset-settlement-state
+
+  rovo:skill:
+    - key: clause-clock-rovo-skill
+      name: clause-clock
+      description: Open-source portable SKILL.md for deterministic JSM SLA interval splicing, vendor recovery apportionment, and human-gated settlement write-back.
+      actions:
+        - evaluate-clause-clock
+        - run-pbt-audit
+        - commit-credit-settlement
+        - reset-settlement-state
+
+  rovo:mcp:
+    - key: clause-clock-mcp-server
+      name: ClauseClock MCP Server
+      description: Exposes the 4 deterministic ClauseClock SLA & Vendor Apportionment tools to Rovo and external MCP clients.
+      actions:
+        - evaluate-clause-clock
+        - run-pbt-audit
+        - commit-credit-settlement
+        - reset-settlement-state
+
+  action:
+    - key: evaluate-clause-clock
+      name: Evaluate ClauseClock SLA & Vendor Split
+      function: clause-clock-action-router
+      actionVerb: GET
+      description: Computes Union(Incidents) minus Maintenance, clips to the contract billing month and timezone, applies SLA credit tiers and monthly caps, and apportions vendor recovery via Largest Remainder.
+    - key: run-pbt-audit
+      name: Run ClauseClock PBT Invariant Audit
+      function: clause-clock-action-router
+      actionVerb: GET
+      description: Executes Property-Based Testing (P1..P4) against the Uint8Array(44640) discrete minute bitmap oracle and replays the naive spreadsheet counterexample.
+    - key: commit-credit-settlement
+      name: Commit Credit Settlement (Human Approval Gate)
+      function: clause-clock-action-router
+      actionVerb: CREATE
+      description: Validates expectedProposalVersionKey and APPROVAL::<proposalVersionKey>::<approverId>, then atomically records the settlement receipt to JSM internal notes, Jira Entity Properties, KVS cap ledger, and @forge/realtime.
+    - key: reset-settlement-state
+      name: Reset Settlement State (1-Click Rollback)
+      function: clause-clock-action-router
+      actionVerb: UPDATE
+      description: Restores the claim and monthly cap ledger back to the pre-settlement READY state and broadcasts a @forge/realtime reset event.
+
+  function:
+    - key: clause-clock-action-router
+      handler: index.routeClauseClockForgeAction
+
+resources:
+  - key: clause-clock-ui
+    path: out
+
+permissions:
+  scopes:
+    - read:jira-work
+    - write:jira-work
+    - storage:app
+
+app:
+  runtime:
+    name: nodejs22.x
+  id: ari:cloud:ecosystem::app/clause-clock-codegeist-2026

@@ -14,6 +14,24 @@ import type {
 
 export const MAX_BILLING_MONTH_MINUTES = 44640;
 
+export function formatMachineReadableFooter(
+  receipt: Pick<
+    CalculationReceipt,
+    | 'receiptId'
+    | 'claimKey'
+    | 'billingMonth'
+    | 'billingTimezone'
+    | 'provenance'
+    | 'mathBreakdown'
+  >,
+): string {
+  const modeLabel = receipt.provenance.sourceMode === 'LIVE_GRAPH_AND_REST' ? 'LIVE' : 'SEEDED';
+  const creditDollars = (receipt.mathBreakdown.newCreditCents / 100).toFixed(2);
+  const vendorDollars = (receipt.mathBreakdown.vendorTotalApportionedCents / 100).toFixed(2);
+  const internalDollars = (receipt.mathBreakdown.internalAbsorbedCents / 100).toFixed(2);
+  return `[ClauseClock Receipt #${receipt.receiptId} | issue=${receipt.claimKey} | month=${receipt.billingMonth} (${receipt.billingTimezone}) | mode=${modeLabel} | netOutage=${receipt.mathBreakdown.netOutageMinutes}m | credit=$${creditDollars} | vendorSplit=$${vendorDollars} vendor / $${internalDollars} internal]`;
+}
+
 export function resolveTimezoneOffsetMinutes(timezone: string): number {
   const normalized = timezone.trim();
   if (!normalized || normalized === 'UTC' || normalized === 'Etc/UTC' || normalized === 'GMT') {
@@ -791,6 +809,14 @@ export function reconcileClauseClock(
   };
 
   const replayCommand = `npx tsx -e "import { getSeededScenario, reconcileClauseClock } from './src/core/index.ts'; console.log(JSON.stringify(reconcileClauseClock(getSeededScenario('${scenario.scenarioId}'), { timezoneOverride: '${billingTimezone}' })))"`;
+  const machineReadableFooter = formatMachineReadableFooter({
+    receiptId,
+    claimKey: contract.claimKey,
+    billingMonth: contract.billingMonth,
+    billingTimezone,
+    provenance,
+    mathBreakdown,
+  });
 
   return {
     receiptId,
@@ -826,5 +852,6 @@ export function reconcileClauseClock(
     discardedAiAmountOverrides,
     provenance,
     replayCommand,
+    machineReadableFooter,
   };
 }

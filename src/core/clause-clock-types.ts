@@ -1,4 +1,4 @@
-export type ClauseClockSourceMode = 'SEEDED_FIXTURE';
+export type ClauseClockSourceMode = 'LIVE_GRAPH_AND_REST' | 'SEEDED_FIXTURE';
 
 export type ContractApprovalStatus = 'APPROVED' | 'DRAFT';
 
@@ -170,6 +170,7 @@ export interface CalculationReceipt {
   discardedAiAmountOverrides: string[];
   provenance: SourceProvenanceManifest;
   replayCommand: string;
+  machineReadableFooter: string;
 }
 
 export interface BitmapOracleInput {
