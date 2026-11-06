@@ -11,6 +11,12 @@ When an enterprise customer submits a Jira Service Management (JSM) SLA Service 
 
 ## Visual Gallery
 
+### Launch Film (`The Calibre Escape` — 45s 1080p30)
+- **Full 45-second narrated launch film**: [`docs/media/clause-clock-demo.mp4`](/docs/media/clause-clock-demo.mp4)
+- **12-Beat Contact Sheet**: [`docs/media/stills.png`](/docs/media/stills.png)
+
+![ClauseClock 45-Second Launch Film Contact Sheet](/docs/media/stills.png)
+
 ### 1. The Calibre CC-26 Workbench & 3-Minute Codegeist Judge Rail (`/`)
 A zero-setup 7-step Judge Guided Checklist Bar, 1-Click Seed 4-Scenario switcher, and Swiss chronograph subdials comparing Naive Spreadsheet figures against `ClauseClock` net billable downtime, uptime, and credit liability.
 
