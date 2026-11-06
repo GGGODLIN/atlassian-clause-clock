@@ -90,7 +90,11 @@ function parseManifestContract(manifestYaml: string): {
   actionFunctionRefs: string[];
   actionVerbsByKey: Record<string, string>;
 } {
-  const hasGraphConnector = /(?:^|\s)graph:connector\s*:/m.test(manifestYaml);
+  const strippedYaml = manifestYaml
+    .split(/\r?\n/)
+    .filter((line) => !/^\s*#/.test(line))
+    .join('\n');
+  const hasGraphConnector = /(?:^|\s)graph:connector\s*:/m.test(strippedYaml);
   const declaredModules: string[] = [];
   for (const mod of REQUIRED_MODULES) {
     const escaped = mod.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

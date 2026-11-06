@@ -638,7 +638,9 @@ export function executeClauseClockAction(
       };
     }
 
-    const timestampIso = new Date(Date.UTC(2026, 10, 6, 12, 0, 0)).toISOString();
+    const timestampIso = new Date(
+      Date.UTC(2026, 10, 6, 12, 0, store.realtimeEvents.length),
+    ).toISOString();
 
     ledgerEntry.committedByClaimKey[receipt.claimKey] = {
       proposalVersionKey: receipt.proposalVersionKey,
@@ -799,7 +801,9 @@ export function executeClauseClockAction(
   }
 
   const refreshedEval = evaluateScenarioAgainstStore(store, payload);
-  const timestampIso = new Date(Date.UTC(2026, 10, 6, 12, 5, 0)).toISOString();
+  const timestampIso = new Date(
+    Date.UTC(2026, 10, 6, 12, 0, store.realtimeEvents.length),
+  ).toISOString();
   const realtimeEvent: ForgeRealtimeEvent = {
     channel: 'clause-clock-settlement-sync',
     eventId: `EVT-${targetClaimKey}-READY-${store.realtimeEvents.length + 1}`,

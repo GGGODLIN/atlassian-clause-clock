@@ -23,17 +23,24 @@ export function checkP1IntervalEquivalence(
 ): boolean {
   const oracle = evaluateBitmapOracle({
     billingMonthTotalMinutes: receipt.inputsSnapshot.billingMonthTotalMinutes,
-    incidents: receipt.intervalLedger.clippedIncidents,
-    maintenanceWindows: receipt.intervalLedger.clippedMaintenance,
+    incidents: scenario.incidents,
+    maintenanceWindows: scenario.maintenanceWindows,
     vendorFeeds: scenario.vendorFeeds,
   });
 
   if (
     receipt.mathBreakdown.netOutageMinutes !== oracle.netOutageMinutes ||
     receipt.mathBreakdown.mergedIncidentMinutes !== oracle.mergedIncidentMinutes ||
-    receipt.mathBreakdown.maintenanceDeductedMinutes !== oracle.maintenanceDeductedMinutes
+    receipt.mathBreakdown.maintenanceDeductedMinutes !== oracle.maintenanceDeductedMinutes ||
+    receipt.mathBreakdown.vendorCoveredMinutes !== oracle.vendorCoveredUnionMinutes
   ) {
     return false;
+  }
+
+  for (const row of receipt.vendorApportionments) {
+    if (row.overlapMinutes !== (oracle.vendorOverlapMinutesByVendorId[row.vendorId] ?? 0)) {
+      return false;
+    }
   }
 
   // Commutativity & Idempotence check: reverse + duplicate first incident

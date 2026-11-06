@@ -29,3 +29,8 @@
 
 - 2026-11-06 Batch Execution & Testing Mode Approved: `execution_mode=subagent-driven` (`1.b`), `testing_mode=tdd` (`2.a`), `ticket_01_best_of_n=enabled` (`3.a`), covering Tickets `01`, `02`, `03` (`[user: "1.b\n2.a\n3.a"]`).
 - 2026-11-06 Ticket 01 Completed (`best-of-n-implement` `wf_e3894023-966` winner `bon-2` + YAGNI trim): `node --experimental-strip-types --test tests/ticket-01-interval-engine-and-pbt.test.ts` (7/7 pass) & `npx tsc --noEmit` (exit 0).
+- 2026-11-06 Closeout Review (`typescript-reviewer` + `security-reviewer`):
+  - `Acceptance-miss — P1 independent oracle boundary → checkP1IntervalEquivalence passed clippedIncidents/clippedMaintenance instead of raw scenario intervals and omitted vendorCoveredUnionMinutes / vendorOverlapMinutesByVendorId checks` (FIXED in `src/core/clause-clock-pbt.ts`).
+  - `Failure-miss: F5 — replayCommand omitted disabledIncidentIds/disabledMaintenanceIds and unvalidated timezoneOverride could break footer/replayCommand` (FIXED in `src/core/clause-clock-engine.ts` via `isValidIanaTimezone` and `JSON.stringify` replay options).
+  - `Failure-miss: F2 — timezone offset subtraction direction in Scenario 2` (Kept per `M3` / `choices.md` `D20` `needs-user`: Scenario 2 test and UI copy intentionally pin the `40m -> 60m` shift; `isValidIanaTimezone` added so invalid timezones never silently pass).
+  - `Failure-miss: F6 — capTruncated boundary step when grossCreditCents === remainingCapBeforeCents` (Kept per `M3`: existing formula is pinned by Scenario 1 `$2,000 - $500 = $1,500` and Scenario 3 `$3,000 capped to $800` contract tests).

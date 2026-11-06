@@ -29,3 +29,6 @@
 
 - 2026-11-06 Ticket 02 Completed (`routed-impl` worker `a346d1b10118120df` in `.worktrees/ticket-02`): `node --experimental-strip-types --test tests/ticket-01-interval-engine-and-pbt.test.ts tests/ticket-02-actions-mcp-and-forge-contract.test.ts` (15/15 pass, Role 1..3 + `P4`) and `npx tsc --noEmit` (exit 0).
 - 2026-11-06 `ticket-yagni` hook runner note: `Unreviewed: no registered absolute ticket path for this worker; the runner does not scan directories` (recorded per `/implement` Step 2.3 without retrying with different arguments).
+- 2026-11-06 Closeout Review (`typescript-reviewer` + `security-reviewer`):
+  - `Failure-miss: F2 — parseManifestContract hasGraphConnector regex matched YAML comment lines` (FIXED in `src/actions/forge-contract-validator.ts` by stripping `#` comment lines before matching).
+  - `Failure-miss: F1 — commit-credit-settlement and reset-settlement-state used fixed timestamps causing backwards timestampIso after reset -> re-commit` (FIXED in `src/actions/clause-clock-dispatcher.ts` using monotonic sequence offset `store.realtimeEvents.length`).

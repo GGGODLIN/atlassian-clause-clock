@@ -32,9 +32,22 @@ export function formatMachineReadableFooter(
   return `[ClauseClock Receipt #${receipt.receiptId} | issue=${receipt.claimKey} | month=${receipt.billingMonth} (${receipt.billingTimezone}) | mode=${modeLabel} | netOutage=${receipt.mathBreakdown.netOutageMinutes}m | credit=$${creditDollars} | vendorSplit=$${vendorDollars} vendor / $${internalDollars} internal]`;
 }
 
+export function isValidIanaTimezone(timezone: string): boolean {
+  const normalized = timezone.trim();
+  if (!normalized || !/^[A-Za-z0-9_+-]+(?:\/[A-Za-z0-9_+-]+)*$/.test(normalized)) {
+    return false;
+  }
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: normalized });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function resolveTimezoneOffsetMinutes(timezone: string): number {
   const normalized = timezone.trim();
-  if (!normalized || normalized === 'UTC' || normalized === 'Etc/UTC' || normalized === 'GMT') {
+  if (!isValidIanaTimezone(normalized) || normalized === 'UTC' || normalized === 'Etc/UTC' || normalized === 'GMT') {
     return 0;
   }
   try {
@@ -635,8 +648,16 @@ export function reconcileClauseClock(
     Math.min(MAX_BILLING_MONTH_MINUTES, Math.floor(contract.billingMonthTotalMinutes)),
   );
 
-  const rawContractTimezone = contract.billingTimezone?.trim();
-  const overrideTimezone = options?.timezoneOverride?.trim();
+  const rawContractCandidate = contract.billingTimezone?.trim();
+  const rawContractTimezone =
+    rawContractCandidate && isValidIanaTimezone(rawContractCandidate)
+      ? rawContractCandidate
+      : undefined;
+  const overrideCandidate = options?.timezoneOverride?.trim();
+  const overrideTimezone =
+    overrideCandidate && isValidIanaTimezone(overrideCandidate)
+      ? overrideCandidate
+      : undefined;
   const missingTimezoneFallback = !rawContractTimezone && !overrideTimezone;
   const billingTimezone = overrideTimezone || rawContractTimezone || 'UTC';
   const baseTimezone = rawContractTimezone || 'UTC';
@@ -808,7 +829,14 @@ export function reconcileClauseClock(
     internalAbsorbedCents,
   };
 
-  const replayCommand = `npx tsx -e "import { getSeededScenario, reconcileClauseClock } from './src/core/index.ts'; console.log(JSON.stringify(reconcileClauseClock(getSeededScenario('${scenario.scenarioId}'), { timezoneOverride: '${billingTimezone}' })))"`;
+  const replayOptions: Record<string, unknown> = { timezoneOverride: billingTimezone };
+  if (options?.disabledIncidentIds && options.disabledIncidentIds.length > 0) {
+    replayOptions.disabledIncidentIds = options.disabledIncidentIds;
+  }
+  if (options?.disabledMaintenanceIds && options.disabledMaintenanceIds.length > 0) {
+    replayOptions.disabledMaintenanceIds = options.disabledMaintenanceIds;
+  }
+  const replayCommand = `node --experimental-strip-types -e 'import { getSeededScenario, reconcileClauseClock } from "./src/core/index.ts"; console.log(JSON.stringify(reconcileClauseClock(getSeededScenario(${JSON.stringify(scenario.scenarioId)}), ${JSON.stringify(replayOptions)})))'`;
   const machineReadableFooter = formatMachineReadableFooter({
     receiptId,
     claimKey: contract.claimKey,

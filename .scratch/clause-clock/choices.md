@@ -203,3 +203,70 @@
 
 - D6、D11、D12 都落在「結算狀態以誰為準、多個客戶端怎麼同步」，建議回 spec 補一段 web studio 的狀態來源與同步策略，否則每加一個面板都要再判一次。
 - D1、D2 都落在「對外文件能揭露什麼」，建議回 spec 補一段收據對象與揭露政策。
+
+---
+
+## Tickets 01–02 & Closeout Review · implement run（commits f38949d、31fc2c3、adc688e 與收尾修補；base 6b085e2；2026-11-06）
+
+### 八類掃描
+
+- 資料形狀與格式：有（D22）
+- 存放位置與命名：無（依 ticket 與 Next.js App Router 慣例放置於 `src/core`、`src/actions`、`app/api`）
+- API 契約與錯誤行為：有（D23、D24）
+- 新增的相依套件：有（D25）
+- 並行與效能取捨：有（D26）
+- 範圍解讀：無（已在 D13、D20 涵蓋）
+- 測試設定改動：無（維持 Node 內建 `--experimental-strip-types --test`）
+- 之後的程式會照抄的模式：有（D27）
+- 內部命名與純外觀選擇：合併計數——14 個匯出型別名稱與 4 個固定劇本 ID，不逐條列
+
+### 決定
+
+#### D22 · 多供應商同時段重疊時，以 `BigInt` 共同分母解耦內部吸收權重與供應商重疊池
+- **何時**：f38949d（`src/core/clause-clock-engine.ts:438-625`）
+- **決定**：當同一段客戶淨停機（例如 60 分鐘）同時被多家上游供應商的故障時段重疊覆蓋時，引擎先把「有任一供應商覆蓋的聯集分鐘數（`vendorCoveredMinutes`）」與「純內部吸收分鐘數（`internalAbsorbedMinutes`）」按 `netOutageMinutes` 切開，再以 `BigInt(netOutageMinutes) * BigInt(sumRawVendorOverlapMinutes)` 為共同有理數分母，在單一最大餘數法（Largest Remainder Method）迴圈內同時分攤各供應商與內部吸收的美分。沒選的做法是直接拿 `sum(vendorOverlapMinutes) + internalAbsorbedMinutes` 當分母：當兩家供應商在同一時段重疊時，總分鐘數會超過 `netOutageMinutes`，導致內部吸收的百分比與金額被不當稀釋。
+- **規格缺口**：spec 只規定 `sum(vendorApportionedCents) + internalAbsorbedCents === newCreditCents` 與最大餘數法，未規定多家供應商在同一分鐘重疊時如何避免稀釋內部吸收比例。
+- **影響範圍**：所有多供應商重疊劇本（含 `monthly-cap-truncation` 與隨機 PBT 測試）的各供應商求償金額與內部吸收金額。
+- **判定**：sound — 以 `BigInt` 精確有理數同時保證美分守恆、消除浮點數餘數誤差，且內部吸收比例嚴格等於 `internalAbsorbedMinutes / netOutageMinutes`。
+- **把握度**：高
+
+#### D23 · 非法 `timezoneOverride` 字串退回合約時區或 `UTC`，並將 `disabledIncidentIds`／`disabledMaintenanceIds` 納入 `replayCommand`
+- **何時**：收尾審查修補（`src/core/clause-clock-engine.ts:35-48,645-655,826-834`）
+- **決定**：當外部呼叫端或 MCP 傳入的 `timezoneOverride` 不是合法的 IANA 時區名稱（例如含引號或控制字元的字串）時，`isValidIanaTimezone` 先以正規表示式與 `Intl.DateTimeFormat` 驗證；驗證失敗時直接忽略該覆寫、退回合約時區或 `UTC`，並在組裝 `replayCommand` 時以 `node --experimental-strip-types -e` 搭配 `JSON.stringify` 輸出 `timezoneOverride`、`disabledIncidentIds` 與 `disabledMaintenanceIds`。沒選的做法是直接把原始字串拼進 `replayCommand` 與 `machineReadableFooter`：會讓非法字串破壞收據頁尾格式，且停用單一事件後複製 `replayCommand` 無法重現相同結果。
+- **規格缺口**：spec 只寫缺時區時退回 `UTC`，沒定傳入損壞或惡意時區覆寫字串時的處理方式，也沒定停用部分區間後的 `replayCommand` 序列化格式。
+- **影響範圍**：`/api/clause-clock`、`/api/mcp` 與 CLI 重放指令的輸入邊界與重現性。
+- **判定**：sound — 防止非法時區破壞收據格式，並確保任何區間開關組合下的 `replayCommand` 都能一鍵重現。
+- **把握度**：高
+
+#### D24 · 結算與重置的 `@forge/realtime` 事件時間戳依事件序號單調遞增
+- **何時**：收尾審查修補（`src/actions/clause-clock-dispatcher.ts:641,802`）
+- **決定**：當操作者執行 `commit-credit-settlement` 或 `reset-settlement-state` 時，產生的 `@forge/realtime` 事件與內部紀錄時間戳以基準時間加上 `store.realtimeEvents.length` 秒（`Date.UTC(2026, 10, 6, 12, 0, store.realtimeEvents.length)`）計算。沒選的做法是呼叫系統即時時鐘 `new Date()`（會讓確定性測試每次結果不同）或寫死兩個固定常數時間（會在「結算 → 重置 → 再結算」時發生時間戳倒退）。
+- **規格缺口**：spec 要求決定性測試與即時事件預覽，但沒定無真實時鐘注入時如何產生單調遞增的事件時間戳。
+- **影響範圍**：`store.realtimeEvents`、`jsmInternalNotes` 與 `kvsSettlementRecords` 的時間戳欄位。
+- **判定**：sound — 兼具測試決定性與事件時間序列單調遞增性。
+- **把握度**：高
+
+#### D25 · 基礎建設僅安裝 `next`、`react`、`react-dom`、`fast-check` 與 `tailwindcss`，零額外執行期套件
+- **何時**：6b085e2（`package.json:14-27`）
+- **決定**：專案執行期相依套件只放 `next@16.3.6`、`react@19.2.8`、`react-dom@19.2.8` 與 `fast-check@^4.1.1`；YAML 與 `SKILL.md` frontmatter 解析、區間掃描線與 MCP JSON-RPC 路由全部以純 TypeScript 實作。沒選的做法是額外引入 `js-yaml`、`gray-matter`、`luxon` 或 `@modelcontextprotocol/sdk`：會增加安裝體積與供應鏈風險。
+- **規格缺口**：spec 只指定 `fast-check` 與 Next.js / Forge 架構，沒定輔助解析套件清單。
+- **影響範圍**：`src/actions/forge-contract-validator.ts` 與 `app/api/mcp/route.ts` 的解析器需維持在專案支援的固定語法子集內。
+- **判定**：sound — 保持零多餘相依套件，3 秒完成安裝且通過所有契約測試。
+- **把握度**：高
+
+#### D26 · `run-pbt-audit` 的隨機測試次數夾限於 `10..500`（預設 `100` 次）
+- **何時**：f38949d、adc688e（`src/core/clause-clock-pbt.ts:183`）
+- **決定**：當使用者或 MCP 呼叫 `run-pbt-audit` 時，`numRuns` 預設為 `100`，並強制夾限在 `[10, 500]` 之間（單次執行約 40–80ms）。沒選的做法是不設上限任由呼叫端傳入 `1000000`：會在每次分配 `Uint8Array(44640)` 位元圖時耗盡伺服器 CPU、撞上 Forge 25 秒限制。
+- **規格缺口**：spec 要求提供互動式 `run-pbt-audit` 工具，但未指定單次呼叫的 `numRuns` 上下限。
+- **影響範圍**：MCP 與 UI 呼叫 `run-pbt-audit` 的回應延遲與覆蓋深度。
+- **判定**：sound — 在 100ms 內完成 `P1..P4` 驗證並防止過大 `numRuns` 造成阻斷服務。
+- **把握度**：高
+
+#### D27 · 雙型別區間回傳（Array + 具名欄位）作為核心引擎與工作台之間的共用慣例
+- **何時**：f38949d（`src/core/clause-clock-engine.ts:72-128,185-267`）
+- **決定**：當呼叫 `clipIntervalsToWindow` 或 `subtractIntervals` 時，回傳值以 `Object.assign(arrayResult, { clippedIntervals, clippedCount })` 同時具備陣列行為與具名屬性。沒選的做法是只回傳純物件或只回傳純陣列：只回傳陣列拿不到被裁切筆數（`clippedCount`）與被扣除切片（`deductedSlices`），只回傳物件則不方便直接串接區間管線。
+- **規格缺口**：Ticket 01 要求匯出 `subtractIntervals` 並在 `CalculationReceipt` 提供 `maintenanceDeductedSlices` 與 `boundaryClippedCount`，未規定輔助函式的回傳包裝方式。
+- **影響範圍**：之後新增的區間運算函式若同時需要切片主體與統計附帶資訊，會沿用此雙型別回傳模式。
+- **判定**：sound — 兼顧函數式陣列串接與收據明細欄位提取。
+- **把握度**：中
+
