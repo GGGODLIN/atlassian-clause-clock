@@ -646,7 +646,6 @@ export function executeClauseClockAction(
       proposalVersionKey: receipt.proposalVersionKey,
       committedCents: receipt.mathBreakdown.newCreditCents,
     };
-    ledgerEntry.settledReceipts[receipt.proposalVersionKey] = receipt;
 
     let totalSessionCommitted = 0;
     for (const item of Object.values(ledgerEntry.committedByClaimKey)) {
@@ -758,7 +757,6 @@ export function executeClauseClockAction(
     }
     for (const entry of store.capLedger.values()) {
       entry.committedByClaimKey = {};
-      entry.settledReceipts = {};
       entry.committedInSessionCents = 0;
       entry.priorApprovedCents = entry.initialPriorApprovedCents;
       entry.remainingCapCents = Math.max(
@@ -769,11 +767,6 @@ export function executeClauseClockAction(
   } else {
     store.settlementStatusByClaimKey.set(targetClaimKey, 'READY');
     delete ledgerEntry.committedByClaimKey[targetClaimKey];
-    for (const key of Object.keys(ledgerEntry.settledReceipts)) {
-      if (ledgerEntry.settledReceipts[key]?.claimKey === targetClaimKey) {
-        delete ledgerEntry.settledReceipts[key];
-      }
-    }
 
     let remainingCommitted = 0;
     for (const item of Object.values(ledgerEntry.committedByClaimKey)) {

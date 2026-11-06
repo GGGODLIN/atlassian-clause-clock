@@ -77,10 +77,10 @@ export function sumIntervalMinutes(intervals: readonly HalfOpenInterval[]): numb
   return total;
 }
 
-export type ClippedIntervalsResult = HalfOpenInterval[] & {
+export interface ClippedIntervalsResult {
   clippedIntervals: HalfOpenInterval[];
   clippedCount: number;
-};
+}
 
 export function clipIntervalsToWindow(
   intervals: readonly HalfOpenInterval[],
@@ -118,10 +118,10 @@ export function clipIntervalsToWindow(
     }
   }
 
-  return Object.assign(result, {
+  return {
     clippedIntervals: result,
     clippedCount,
-  });
+  };
 }
 
 export function mergeIntervals(intervals: readonly HalfOpenInterval[]): HalfOpenInterval[] {
@@ -174,10 +174,10 @@ export function mergeIntervals(intervals: readonly HalfOpenInterval[]): HalfOpen
   return merged;
 }
 
-export type SubtractIntervalsResult = HalfOpenInterval[] & {
+export interface SubtractIntervalsResult {
   remainingIntervals: HalfOpenInterval[];
   deductedSlices: HalfOpenInterval[];
-};
+}
 
 export function subtractIntervals(
   sourceIntervals: readonly HalfOpenInterval[],
@@ -187,19 +187,17 @@ export function subtractIntervals(
   const mergedExclusions = mergeIntervals(exclusionIntervals);
 
   if (mergedSource.length === 0) {
-    const empty: HalfOpenInterval[] = [];
-    return Object.assign(empty, {
-      remainingIntervals: empty,
+    return {
+      remainingIntervals: [],
       deductedSlices: [],
-    });
+    };
   }
 
   if (mergedExclusions.length === 0) {
-    const unchanged = mergedSource.map((item) => ({ ...item }));
-    return Object.assign(unchanged, {
-      remainingIntervals: unchanged,
+    return {
+      remainingIntervals: mergedSource.map((item) => ({ ...item })),
       deductedSlices: [],
-    });
+    };
   }
 
   const remaining: HalfOpenInterval[] = [];
@@ -257,10 +255,10 @@ export function subtractIntervals(
     }
   }
 
-  return Object.assign(remaining, {
+  return {
     remainingIntervals: remaining,
     deductedSlices,
-  });
+  };
 }
 
 export function intersectIntervals(
@@ -468,7 +466,10 @@ function apportionVendorAndInternalCents(params: {
       windowEndMinute,
       shiftMinutes,
     );
-    const overlapIntervals = intersectIntervals(netOutageIntervals, clippedFeed);
+    const overlapIntervals = intersectIntervals(
+      netOutageIntervals,
+      clippedFeed.clippedIntervals,
+    );
     const overlapMinutes = sumIntervalMinutes(overlapIntervals);
     return {
       vendorId: feed.vendorId,

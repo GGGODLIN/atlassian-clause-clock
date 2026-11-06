@@ -24,7 +24,6 @@ export interface CapLedgerEntry {
   priorApprovedCents: number;
   committedInSessionCents: number;
   remainingCapCents: number;
-  settledReceipts: Record<string, CalculationReceipt>;
   committedByClaimKey: Record<
     string,
     {
@@ -120,7 +119,6 @@ export function ensureCapLedgerEntry(
     priorApprovedCents: initialPrior,
     committedInSessionCents: 0,
     remainingCapCents: Math.max(0, capCents - initialPrior),
-    settledReceipts: {},
     committedByClaimKey: {},
   };
   store.capLedger.set(ledgerKey, entry);
