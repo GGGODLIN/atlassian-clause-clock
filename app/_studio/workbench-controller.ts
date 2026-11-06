@@ -18,7 +18,9 @@ import { buildReceiptExportMarkdown, type ReceiptExportKind } from './receipt-ma
 import {
   applySettlementBroadcast,
   createReadySettlementView,
+  selectClaimSettlement,
   type ClaimSettlementView,
+  type SettlementMap,
 } from './settlement-sync.ts';
 
 export type ChecklistStepId =
@@ -115,7 +117,7 @@ export interface CommitGate {
 
 const NO_APPROVAL: WorkbenchApproval = { checked: false, proposalVersionKey: null };
 
-export function createInitialWorkbenchState(scenarioId?: string): WorkbenchState {
+export function createInitialWorkbenchState(scenarioId?: string, settlements: SettlementMap = {}): WorkbenchState {
   return {
     scenarioId: getSeededScenario(scenarioId).scenarioId,
     timezoneOverride: null,
@@ -126,7 +128,7 @@ export function createInitialWorkbenchState(scenarioId?: string): WorkbenchState
     financeOverrideReason: '',
     errorBanner: null,
     pendingAction: null,
-    settlements: {},
+    settlements,
     completedSteps: [],
     lastCopiedExport: null,
   };
@@ -149,6 +151,17 @@ function toggleId(ids: readonly string[], id: string): string[] {
 
 function withSettlement(state: WorkbenchState, view: ClaimSettlementView): WorkbenchState {
   return { ...state, settlements: { ...state.settlements, [view.claimKey]: view } };
+}
+
+// Inputs stay live while a commit or reset is in flight, so an answer can arrive after the user switched claims (F1);
+// it may still record its own claim's settlement but must not void the approval or raise a banner on the new claim.
+function isOnScreen(state: WorkbenchState, claimKey: string | undefined): boolean {
+  return claimKey === undefined || claimKey === selectScenario(state).contract.claimKey;
+}
+
+function settleAnswer(state: WorkbenchState, claimKey: string | undefined): WorkbenchState {
+  const answered = { ...state, pendingAction: null };
+  return isOnScreen(state, claimKey) ? { ...answered, approval: NO_APPROVAL, errorBanner: null } : answered;
 }
 
 export function workbenchReducer(state: WorkbenchState, action: WorkbenchAction): WorkbenchState {
@@ -194,9 +207,9 @@ export function workbenchReducer(state: WorkbenchState, action: WorkbenchAction)
       if (!receipt) {
         return { ...state, pendingAction: null };
       }
-      const previous = selectSettlementView(state, receipt.claimKey);
+      const previous = selectClaimSettlement(state, receipt.claimKey);
       const settled = withSettlement(
-        { ...state, pendingAction: null, approval: NO_APPROVAL, errorBanner: null },
+        settleAnswer(state, receipt.claimKey),
         {
           claimKey: receipt.claimKey,
           status: 'SETTLED',
@@ -211,7 +224,7 @@ export function workbenchReducer(state: WorkbenchState, action: WorkbenchAction)
     case 'RESET_COMPLETED': {
       const claimKey = action.result.receipt?.claimKey ?? selectScenario(state).contract.claimKey;
       const reset = withSettlement(
-        { ...state, pendingAction: null, approval: NO_APPROVAL, errorBanner: null },
+        settleAnswer(state, claimKey),
         {
           ...createReadySettlementView(claimKey),
           proposalVersionKey: action.result.receipt?.proposalVersionKey ?? null,
@@ -221,6 +234,9 @@ export function workbenchReducer(state: WorkbenchState, action: WorkbenchAction)
       return completeStep(reset, 'reset-demo');
     }
     case 'ACTION_REJECTED':
+      if (!isOnScreen(state, action.result.receipt?.claimKey)) {
+        return { ...state, pendingAction: null };
+      }
       return {
         ...state,
         pendingAction: null,
@@ -241,7 +257,7 @@ export function workbenchReducer(state: WorkbenchState, action: WorkbenchAction)
       const claimKey = action.message.event.claimKey;
       const synced = withSettlement(
         state,
-        applySettlementBroadcast(selectSettlementView(state, claimKey), action.message),
+        applySettlementBroadcast(selectClaimSettlement(state, claimKey), action.message),
       );
       return action.message.event.status === 'SETTLED' ? completeStep(synced, 'realtime-sync') : synced;
     }
@@ -274,19 +290,13 @@ export function selectPreviewReceipt(inputs: PreviewInputs): CalculationReceipt 
   });
 }
 
-// The commit template deliberately ships without an approval token: an MCP client cannot mint one, a human must.
+// The commit template starts with an empty token so the inspector shows the 400 gate first; the token is a readable
+// binding of proposal key and approver, not a credential, so leaving it out is a demonstration, not a protection.
 export function selectMcpDefaultArguments(
   inputs: PreviewInputs,
   proposalVersionKey: string,
 ): Record<string, Record<string, unknown>> {
-  const claimContext: Record<string, unknown> = {
-    scenarioId: inputs.scenarioId,
-    ...(inputs.timezoneOverride ? { timezoneOverride: inputs.timezoneOverride } : {}),
-    ...(inputs.disabledIncidentIds.length > 0 ? { disabledIncidentIds: [...inputs.disabledIncidentIds] } : {}),
-    ...(inputs.disabledMaintenanceIds.length > 0
-      ? { disabledMaintenanceIds: [...inputs.disabledMaintenanceIds] }
-      : {}),
-  };
+  const claimContext = scenarioPayload(inputs);
   return {
     'evaluate-clause-clock': claimContext,
     'run-pbt-audit': { numRuns: 50, seed: 20261106 },
@@ -317,10 +327,6 @@ export function selectTimezoneOptions(scenario: ClauseClockScenario): TimezoneOp
   ];
 }
 
-export function selectSettlementView(state: WorkbenchState, claimKey: string): ClaimSettlementView {
-  return state.settlements[claimKey] ?? createReadySettlementView(claimKey);
-}
-
 export function selectCommitGate(
   state: WorkbenchState,
   preview: CalculationReceipt = selectPreviewReceipt(state),
@@ -329,7 +335,7 @@ export function selectCommitGate(
   if (state.pendingAction) {
     blockers.push('ACTION_IN_FLIGHT');
   }
-  if (selectSettlementView(state, preview.claimKey).status === 'SETTLED') {
+  if (selectClaimSettlement(state, preview.claimKey).status === 'SETTLED') {
     blockers.push('ALREADY_SETTLED');
   }
   if (!state.approverId.trim()) {
@@ -344,12 +350,16 @@ export function selectCommitGate(
   return { canCommit: blockers.length === 0, blockers };
 }
 
-function scenarioPayload(state: WorkbenchState): Record<string, unknown> {
+// Empty toggles are omitted rather than sent as []: the dispatcher reads a missing list as "nothing disabled", and the
+// inspector shows this same object as the editable MCP argument template.
+function scenarioPayload(inputs: PreviewInputs): Record<string, unknown> {
   return {
-    scenarioId: state.scenarioId,
-    timezoneOverride: state.timezoneOverride ?? undefined,
-    disabledIncidentIds: [...state.disabledIncidentIds],
-    disabledMaintenanceIds: [...state.disabledMaintenanceIds],
+    scenarioId: inputs.scenarioId,
+    ...(inputs.timezoneOverride ? { timezoneOverride: inputs.timezoneOverride } : {}),
+    ...(inputs.disabledIncidentIds.length > 0 ? { disabledIncidentIds: [...inputs.disabledIncidentIds] } : {}),
+    ...(inputs.disabledMaintenanceIds.length > 0
+      ? { disabledMaintenanceIds: [...inputs.disabledMaintenanceIds] }
+      : {}),
   };
 }
 

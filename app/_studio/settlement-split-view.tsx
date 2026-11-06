@@ -7,8 +7,9 @@ import { CLAUSE_CLOCK_SETTLEMENT_CHANNEL, type ClauseClockHostPort } from './hos
 import {
   createInitialFinanceState,
   financeSubscriberReducer,
-  selectFinanceSettlement,
+  selectClaimSettlement,
   type ClaimSettlementView,
+  type SettlementMap,
 } from './settlement-sync.ts';
 import type { CommitBlocker, CommitGate, WorkbenchApproval } from './workbench-controller.ts';
 
@@ -59,19 +60,18 @@ function SettledSummary({ receipt, approverId }: { receipt: CalculationReceipt; 
   );
 }
 
-const EMPTY_FINANCE_STATE = createInitialFinanceState();
-
 interface FinanceSubscriberPanelProps {
   hostPort: ClauseClockHostPort;
   claimKey: string;
+  initialSettlements: SettlementMap | undefined;
 }
 
-// A separate reducer on purpose: this panel models the jira:globalPage instance, which only learns about settlements
-// through the realtime channel, never from the Support panel's own commit response.
-function FinanceSubscriberPanel({ hostPort, claimKey }: FinanceSubscriberPanelProps) {
-  const [finance, receive] = useReducer(financeSubscriberReducer, EMPTY_FINANCE_STATE);
+// A separate reducer on purpose: this panel models the jira:globalPage instance, which loads the store snapshot once and
+// afterwards only learns about settlements through the realtime channel, never from the Support panel's own response.
+function FinanceSubscriberPanel({ hostPort, claimKey, initialSettlements }: FinanceSubscriberPanelProps) {
+  const [finance, receive] = useReducer(financeSubscriberReducer, initialSettlements, createInitialFinanceState);
   useEffect(() => hostPort.subscribeSettlementChannel(receive), [hostPort, receive]);
-  const view = selectFinanceSettlement(finance, claimKey);
+  const view = selectClaimSettlement(finance, claimKey);
 
   return (
     <section data-testid="finance-view" aria-labelledby="cc-finance-heading" className="cc-case flex flex-col gap-4 rounded-[2rem] p-5 @3xl:p-6">
@@ -120,6 +120,7 @@ function FinanceSubscriberPanel({ hostPort, claimKey }: FinanceSubscriberPanelPr
 
 export interface SettlementSplitViewProps {
   hostPort: ClauseClockHostPort;
+  initialSettlements: SettlementMap | undefined;
   receipt: CalculationReceipt;
   settlement: ClaimSettlementView;
   approverId: string;
@@ -134,6 +135,7 @@ export interface SettlementSplitViewProps {
 
 export function SettlementSplitView({
   hostPort,
+  initialSettlements,
   receipt,
   settlement,
   approverId,
@@ -290,7 +292,11 @@ export function SettlementSplitView({
           </div>
         </section>
 
-        <FinanceSubscriberPanel hostPort={hostPort} claimKey={receipt.claimKey} />
+        <FinanceSubscriberPanel
+          hostPort={hostPort}
+          claimKey={receipt.claimKey}
+          initialSettlements={initialSettlements}
+        />
       </div>
     </section>
   );

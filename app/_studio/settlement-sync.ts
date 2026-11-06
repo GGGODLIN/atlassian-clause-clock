@@ -1,4 +1,4 @@
-import type { SettlementStatus } from '../../src/actions/clause-clock-store.ts';
+import type { ClauseClockStore, SettlementStatus } from '../../src/actions/clause-clock-store.ts';
 import type { CalculationReceipt } from '../../src/core/clause-clock-types.ts';
 import type { SettlementBroadcast } from './host-port.ts';
 
@@ -11,8 +11,10 @@ export interface ClaimSettlementView {
   lastEventId: string | null;
 }
 
+export type SettlementMap = Readonly<Record<string, ClaimSettlementView>>;
+
 export interface FinanceSubscriberState {
-  settlements: Readonly<Record<string, ClaimSettlementView>>;
+  settlements: SettlementMap;
 }
 
 export function createReadySettlementView(claimKey: string): ClaimSettlementView {
@@ -45,8 +47,15 @@ export function applySettlementBroadcast(
   };
 }
 
-export function createInitialFinanceState(): FinanceSubscriberState {
-  return { settlements: {} };
+export function selectClaimSettlement(
+  holder: { settlements: SettlementMap },
+  claimKey: string,
+): ClaimSettlementView {
+  return holder.settlements[claimKey] ?? createReadySettlementView(claimKey);
+}
+
+export function createInitialFinanceState(settlements: SettlementMap = {}): FinanceSubscriberState {
+  return { settlements };
 }
 
 export function financeSubscriberReducer(
@@ -54,18 +63,34 @@ export function financeSubscriberReducer(
   message: SettlementBroadcast,
 ): FinanceSubscriberState {
   const { event } = message;
-  const current = state.settlements[event.claimKey] ?? createReadySettlementView(event.claimKey);
   return {
     settlements: {
       ...state.settlements,
-      [event.claimKey]: applySettlementBroadcast(current, message),
+      [event.claimKey]: applySettlementBroadcast(selectClaimSettlement(state, event.claimKey), message),
     },
   };
 }
 
-export function selectFinanceSettlement(
-  state: FinanceSubscriberState,
-  claimKey: string,
-): ClaimSettlementView {
-  return state.settlements[claimKey] ?? createReadySettlementView(claimKey);
+// Panels must open on what the shared store already holds: a reload or a second judge would otherwise see READY for a
+// settled claim, and the follow-up commit only replays. Matches entity properties by their claimKey field rather than
+// rebuilding the dispatcher's storage key.
+export function snapshotStoreSettlements(store: ClauseClockStore): Record<string, ClaimSettlementView> {
+  const settledProperties = new Map(
+    [...store.jiraEntityProperties.values()].map((property) => [property.claimKey, property]),
+  );
+  const views: Record<string, ClaimSettlementView> = {};
+  for (const [claimKey, status] of store.settlementStatusByClaimKey) {
+    const property = status === 'SETTLED' ? settledProperties.get(claimKey) : undefined;
+    views[claimKey] = property
+      ? {
+          claimKey,
+          status: 'SETTLED',
+          proposalVersionKey: property.proposalVersionKey,
+          settledReceipt: property.receipt,
+          approverId: property.approverId,
+          lastEventId: null,
+        }
+      : createReadySettlementView(claimKey);
+  }
+  return views;
 }

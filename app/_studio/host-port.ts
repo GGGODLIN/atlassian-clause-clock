@@ -70,7 +70,7 @@ export interface HttpHostPortOptions {
 
 const JSON_HEADERS = { 'content-type': 'application/json' } as const;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
@@ -100,6 +100,29 @@ export function parseSkillContractSnapshot(body: unknown): SkillContractSnapshot
   };
 }
 
+// An idempotent replay carries no realtimeEvent because the store already held the settlement; re-announcing it from the
+// stored record keeps a subscriber that missed the original commit (another tab, an MCP client) from staying READY.
+function replayedSettlementEvent(result: ClauseClockActionResult): ForgeRealtimeEvent | null {
+  const record = result.kvsSettlementRecord;
+  const receipt = result.receipt;
+  if (!result.idempotentReplay || !record || !receipt) {
+    return null;
+  }
+  return {
+    channel: CLAUSE_CLOCK_SETTLEMENT_CHANNEL,
+    eventId: `EVT-${record.claimKey}-SETTLED-REPLAY`,
+    claimKey: record.claimKey,
+    scenarioId: record.scenarioId,
+    status: 'SETTLED',
+    proposalVersionKey: record.proposalVersionKey,
+    newCreditCents: receipt.mathBreakdown.newCreditCents,
+    vendorTotalApportionedCents: receipt.mathBreakdown.vendorTotalApportionedCents,
+    internalAbsorbedCents: receipt.mathBreakdown.internalAbsorbedCents,
+    approverId: record.approverId,
+    timestampIso: record.committedAtIso,
+  };
+}
+
 // The web studio has no server push, so this adapter re-emits the realtimeEvent each mutating response carries,
 // standing in for the @forge/realtime subscription a Forge Custom UI host would wire here.
 export function createHttpClauseClockHostPort(options: HttpHostPortOptions = {}): ClauseClockHostPort {
@@ -108,12 +131,13 @@ export function createHttpClauseClockHostPort(options: HttpHostPortOptions = {})
   const listeners = new Set<SettlementListener>();
 
   const publish = (result: ClauseClockActionResult | null): void => {
-    if (!result?.ok || !result.realtimeEvent) {
+    const event = result?.ok ? (result.realtimeEvent ?? replayedSettlementEvent(result)) : null;
+    if (!result || !event) {
       return;
     }
     const message: SettlementBroadcast = {
       channel: CLAUSE_CLOCK_SETTLEMENT_CHANNEL,
-      event: result.realtimeEvent,
+      event,
       receipt: result.receipt ?? null,
     };
     for (const listener of [...listeners]) {

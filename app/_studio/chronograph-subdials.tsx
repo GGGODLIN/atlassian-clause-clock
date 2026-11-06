@@ -1,7 +1,7 @@
 'use client';
 
 import type { CalculationReceipt } from '../../src/core/clause-clock-types.ts';
-import { formatBps, formatMinutes, formatUsdCents } from './format.ts';
+import { formatBps, formatMinutes, formatUsdCents, polarPoint, roundTo2 } from './format.ts';
 
 const SWEEP_START_DEG = -135;
 const SWEEP_DEG = 270;
@@ -17,20 +17,11 @@ interface TickLine {
   y2: number;
 }
 
-function round2(value: number): number {
-  return Math.round(value * 100) / 100;
-}
-
-function polar(radius: number, degrees: number): { x: number; y: number } {
-  const radians = (degrees * Math.PI) / 180;
-  return { x: round2(60 + radius * Math.sin(radians)), y: round2(60 - radius * Math.cos(radians)) };
-}
-
 const DIAL_TICKS: readonly TickLine[] = Array.from({ length: SWEEP_DEG / TICK_STEP_DEG + 1 }, (_, step) => {
   const degrees = SWEEP_START_DEG + step * TICK_STEP_DEG;
   const major = step % MAJOR_EVERY === 0;
-  const outer = polar(54, degrees);
-  const inner = polar(major ? 45 : 50, degrees);
+  const outer = polarPoint(60, 54, degrees);
+  const inner = polarPoint(60, major ? 45 : 50, degrees);
   return { id: `tick-${degrees}`, major, x1: inner.x, y1: inner.y, x2: outer.x, y2: outer.y };
 });
 
@@ -67,13 +58,13 @@ function Subdial({ label, value, caption, fraction, ghostFraction }: SubdialProp
         ))}
         <g
           className="transition-transform duration-700 ease-out motion-reduce:transition-none"
-          style={{ transform: `rotate(${round2(ghostDeg)}deg)`, transformOrigin: '60px 60px' }}
+          style={{ transform: `rotate(${roundTo2(ghostDeg)}deg)`, transformOrigin: '60px 60px' }}
         >
           <line x1="60" y1="64" x2="60" y2="20" className="stroke-signal" strokeWidth="1.2" strokeDasharray="2 2" />
         </g>
         <g
           className="transition-transform duration-700 ease-out motion-reduce:transition-none"
-          style={{ transform: `rotate(${round2(handDeg)}deg)`, transformOrigin: '60px 60px' }}
+          style={{ transform: `rotate(${roundTo2(handDeg)}deg)`, transformOrigin: '60px 60px' }}
         >
           <line x1="60" y1="68" x2="60" y2="14" className="stroke-lume" strokeWidth="2.4" strokeLinecap="round" />
         </g>

@@ -145,11 +145,11 @@ export function createClauseClockStore(): ClauseClockStore {
   return store;
 }
 
-let defaultStoreInstance: ClauseClockStore | null = null;
+// Next.js bundles route handlers and server-rendered pages as separate module copies (verified in the 16.3 build), so a
+// module-level variable gave the studio page a different store than /api/clause-clock and /api/mcp.
+const processWide = globalThis as typeof globalThis & { __clauseClockDefaultStore?: ClauseClockStore };
 
 export function getDefaultClauseClockStore(): ClauseClockStore {
-  if (!defaultStoreInstance) {
-    defaultStoreInstance = createClauseClockStore();
-  }
-  return defaultStoreInstance;
+  processWide.__clauseClockDefaultStore ??= createClauseClockStore();
+  return processWide.__clauseClockDefaultStore;
 }

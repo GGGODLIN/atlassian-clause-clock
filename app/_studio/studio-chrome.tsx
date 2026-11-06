@@ -1,19 +1,13 @@
 'use client';
 
 import type { CalculationReceipt } from '../../src/core/clause-clock-types.ts';
+import { polarPoint } from './format.ts';
 import type { WorkbenchErrorBanner } from './workbench-controller.ts';
 
 const HOUR_MARKERS = Array.from({ length: 12 }, (_, hour) => {
-  const radians = (hour * 30 * Math.PI) / 180;
-  const round2 = (value: number) => Math.round(value * 100) / 100;
-  return {
-    id: `hour-${hour}`,
-    x1: round2(24 + 15 * Math.sin(radians)),
-    y1: round2(24 - 15 * Math.cos(radians)),
-    x2: round2(24 + 19.5 * Math.sin(radians)),
-    y2: round2(24 - 19.5 * Math.cos(radians)),
-    major: hour % 3 === 0,
-  };
+  const inner = polarPoint(24, 15, hour * 30);
+  const outer = polarPoint(24, 19.5, hour * 30);
+  return { id: `hour-${hour}`, x1: inner.x, y1: inner.y, x2: outer.x, y2: outer.y, major: hour % 3 === 0 };
 });
 
 function WatchMark() {

@@ -2,11 +2,12 @@
 
 import { useId, useReducer } from 'react';
 import { CLAUSE_CLOCK_ACTION_KEYS } from '../../src/actions/clause-clock-store.ts';
-import type {
-  ClauseClockHostPort,
-  McpToolExchange,
-  McpToolSummary,
-  SkillContractSnapshot,
+import {
+  isRecord,
+  type ClauseClockHostPort,
+  type McpToolExchange,
+  type McpToolSummary,
+  type SkillContractSnapshot,
 } from './host-port.ts';
 import { runMcpToolCommand, type WorkbenchAction } from './workbench-controller.ts';
 
@@ -154,9 +155,7 @@ function inspectorReducer(state: InspectorState, action: InspectorAction): Inspe
 function parseArguments(text: string): Record<string, unknown> | null {
   try {
     const parsed: unknown = JSON.parse(text);
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null;
+    return isRecord(parsed) ? parsed : null;
   } catch {
     return null;
   }
@@ -344,8 +343,9 @@ export function McpInspector({ hostPort, initialSkillContract, defaultArguments,
             />
             {state.activeTool === 'commit-credit-settlement' ? (
               <p className="mt-1 font-mono text-[10px] text-case-muted">
-                approvalToken stays empty on purpose: an MCP client cannot mint APPROVAL::&lt;key&gt;::&lt;approverId&gt;
-                — run it to watch the gate answer 400, then paste a human-issued token.
+                approvalToken starts empty so you can watch the gate answer 400. The token APPROVAL::&lt;key&gt;::&lt;approverId&gt;
+                only records which proposal key a named approver accepted; it is a readable binding, not a secret or a
+                signature.
               </p>
             ) : null}
             {state.argumentError ? (

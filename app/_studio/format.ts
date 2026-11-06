@@ -19,6 +19,16 @@ export function formatBps(bps: number): string {
   return `${(bps / 100).toFixed(2)}%`;
 }
 
+export function roundTo2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+// Dial geometry: 0° points at 12 o'clock and angles grow clockwise, the way watch indices are read.
+export function polarPoint(centre: number, radius: number, degrees: number): { x: number; y: number } {
+  const radians = (degrees * Math.PI) / 180;
+  return { x: roundTo2(centre + radius * Math.sin(radians)), y: roundTo2(centre - radius * Math.cos(radians)) };
+}
+
 export interface BillingClockParts {
   isoDate: string;
   monthDay: string;

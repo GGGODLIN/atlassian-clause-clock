@@ -12,6 +12,7 @@ import type { ReceiptExportKind } from './receipt-markdown.ts';
 import { ReceiptExports } from './receipt-exports.tsx';
 import { ScenarioSelector } from './scenario-selector.tsx';
 import { SettlementSplitView } from './settlement-split-view.tsx';
+import { selectClaimSettlement, type SettlementMap } from './settlement-sync.ts';
 import { StudioCaseback, StudioErrorBanner, StudioFooter, StudioHeader } from './studio-chrome.tsx';
 import { VendorApportionmentTable } from './vendor-apportionment-table.tsx';
 import { buildIntervalWaterfall } from './waterfall-model.ts';
@@ -24,7 +25,6 @@ import {
   selectMcpDefaultArguments,
   selectPreviewReceipt,
   selectScenario,
-  selectSettlementView,
   selectTimezoneOptions,
   workbenchReducer,
 } from './workbench-controller.ts';
@@ -33,6 +33,16 @@ export interface ClauseClockWorkbenchProps {
   hostPort: ClauseClockHostPort;
   initialScenarioId?: string;
   initialSkillContract?: SkillContractSnapshot | null;
+  initialSettlements?: SettlementMap;
+}
+
+interface WorkbenchSeed {
+  scenarioId: string | undefined;
+  settlements: SettlementMap | undefined;
+}
+
+function seedWorkbench({ scenarioId, settlements }: WorkbenchSeed) {
+  return createInitialWorkbenchState(scenarioId, settlements);
 }
 
 // Host-agnostic on purpose: everything host-specific arrives through hostPort, so the Next.js studio and a Forge
@@ -41,8 +51,13 @@ export function ClauseClockWorkbench({
   hostPort,
   initialScenarioId,
   initialSkillContract = null,
+  initialSettlements,
 }: ClauseClockWorkbenchProps) {
-  const [state, dispatch] = useReducer(workbenchReducer, initialScenarioId, createInitialWorkbenchState);
+  const [state, dispatch] = useReducer(
+    workbenchReducer,
+    { scenarioId: initialScenarioId, settlements: initialSettlements },
+    seedWorkbench,
+  );
   const { scenarioId, timezoneOverride, disabledIncidentIds, disabledMaintenanceIds } = state;
   const scenario = selectScenario(state);
   const preview = useMemo(
@@ -59,7 +74,7 @@ export function ClauseClockWorkbench({
     [scenarioId, timezoneOverride, disabledIncidentIds, disabledMaintenanceIds, preview.proposalVersionKey],
   );
   const timezoneOptions = selectTimezoneOptions(scenario);
-  const settlement = selectSettlementView(state, preview.claimKey);
+  const settlement = selectClaimSettlement(state, preview.claimKey);
   const gate = selectCommitGate(state, preview);
   const exportReceipt =
     settlement.status === 'SETTLED' && settlement.settledReceipt ? settlement.settledReceipt : preview;
@@ -140,6 +155,7 @@ export function ClauseClockWorkbench({
 
         <SettlementSplitView
           hostPort={hostPort}
+          initialSettlements={initialSettlements}
           receipt={preview}
           settlement={settlement}
           approverId={state.approverId}

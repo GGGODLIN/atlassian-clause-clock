@@ -27,7 +27,8 @@ import {
 import {
   createInitialFinanceState,
   financeSubscriberReducer,
-  selectFinanceSettlement,
+  selectClaimSettlement,
+  snapshotStoreSettlements,
 } from '../app/_studio/settlement-sync.ts';
 import {
   createInitialWorkbenchState,
@@ -36,7 +37,6 @@ import {
   runResetCommand,
   selectCommitGate,
   selectPreviewReceipt,
-  selectSettlementView,
   workbenchReducer,
   type WorkbenchState,
 } from '../app/_studio/workbench-controller.ts';
@@ -512,7 +512,7 @@ test('AC4 (Story 2 & 4, F5): confirming a settlement in the Support view updates
   assert.equal(commitAction.type, 'COMMIT_SETTLED');
   support = workbenchReducer(support, commitAction);
 
-  const supportView = selectSettlementView(support, 'JSM-402');
+  const supportView = selectClaimSettlement(support, 'JSM-402');
   assert.equal(supportView.status, 'SETTLED');
   assert.equal(
     supportView.settledReceipt?.proposalVersionKey,
@@ -524,7 +524,7 @@ test('AC4 (Story 2 & 4, F5): confirming a settlement in the Support view updates
     broadcasts.map((message) => [message.channel, message.event.claimKey, message.event.status]),
     [['clause-clock-settlement-sync', 'JSM-402', 'SETTLED']],
   );
-  const financeView = selectFinanceSettlement(finance, 'JSM-402');
+  const financeView = selectClaimSettlement(finance, 'JSM-402');
   assert.equal(financeView.status, 'SETTLED');
   assert.equal(financeView.settledReceipt?.receiptId, 'RCPT-JSM-402-2026-11-NET75M');
   assert.equal(financeView.settledReceipt?.mathBreakdown.vendorTotalApportionedCents, 90000);
@@ -539,15 +539,15 @@ test('AC4 (Story 2 & 4, F5): confirming a settlement in the Support view updates
   const resetAction = await runResetCommand(port, support);
   assert.equal(resetAction.type, 'RESET_COMPLETED');
   support = workbenchReducer(support, resetAction);
-  assert.equal(selectSettlementView(support, 'JSM-402').status, 'READY');
-  assert.equal(selectSettlementView(support, 'JSM-402').settledReceipt, null);
+  assert.equal(selectClaimSettlement(support, 'JSM-402').status, 'READY');
+  assert.equal(selectClaimSettlement(support, 'JSM-402').settledReceipt, null);
 
   assert.deepEqual(
     broadcasts.map((message) => message.event.status),
     ['SETTLED', 'READY'],
   );
-  assert.equal(selectFinanceSettlement(finance, 'JSM-402').status, 'READY');
-  assert.equal(selectFinanceSettlement(finance, 'JSM-402').settledReceipt, null);
+  assert.equal(selectClaimSettlement(finance, 'JSM-402').status, 'READY');
+  assert.equal(selectClaimSettlement(finance, 'JSM-402').settledReceipt, null);
 
   const resetEvaluation = await port.executeAction('evaluate-clause-clock', {
     scenarioId: 'hero-overlap-splicer',
@@ -627,9 +627,10 @@ test('AC5 (Story 2 & 5): the Rovo MCP & SKILL.md Live Inspector shows the live S
   assert.equal(pbtAudit.result?.pbtAuditReport?.passed, true);
   assert.equal(commit.result?.settlementStatus, 'SETTLED');
   assert.equal(reset.result?.settlementStatus, 'READY');
+  // The workbench replay re-announces the stored settlement, so a page that missed the MCP commit still turns SETTLED.
   assert.deepEqual(
     broadcasts.map((message) => message.event.status),
-    ['SETTLED', 'READY'],
+    ['SETTLED', 'SETTLED', 'READY'],
   );
 
   const receiptHtml = renderToStaticMarkup(createElement(McpExchangeReceipt, { exchange: commit }));
@@ -644,4 +645,93 @@ test('AC5 (Story 2 & 5): the Rovo MCP & SKILL.md Live Inspector shows the live S
   assert.equal(renderedResponse.content[0]!.text.endsWith(commit.machineReadableFooter), true);
   assert.equal(getByTestId(receiptHtml, 'mcp-footer').text, commit.machineReadableFooter);
   unsubscribe();
+});
+
+test('AC4 regression (review F-01): a claim the shared store already settled paints SETTLED in both views, and a replayed commit still reaches the Finance subscriber with the stored receipt', async () => {
+  resetSharedStore();
+  const { port } = createStudioHarness();
+  const heroKey = selectPreviewReceipt(createInitialWorkbenchState('hero-overlap-splicer')).proposalVersionKey;
+  const otherJudge = executeClauseClockAction(getDefaultClauseClockStore(), 'commit-credit-settlement', {
+    scenarioId: 'hero-overlap-splicer',
+    expectedProposalVersionKey: heroKey,
+    approverId: 'USR-OTHER-JUDGE',
+    approvalToken: `APPROVAL::${heroKey}::USR-OTHER-JUDGE`,
+  });
+  assert.equal(otherJudge.status, 200);
+
+  const html = renderToStaticMarkup(
+    createElement(ClauseClockWorkbench, {
+      hostPort: port,
+      initialScenarioId: 'hero-overlap-splicer',
+      initialSkillContract: null,
+      initialSettlements: snapshotStoreSettlements(getDefaultClauseClockStore()),
+    }),
+  );
+  assert.equal(getByTestId(html, 'support-settlement-status').attributes['data-status'], 'SETTLED');
+  assert.equal(getByTestId(html, 'finance-settlement-status').attributes['data-status'], 'SETTLED');
+  assert.match(getByTestId(html, 'finance-view').text, /RCPT-JSM-402-2026-11-NET75M/);
+
+  let finance = createInitialFinanceState();
+  const broadcasts: SettlementBroadcast[] = [];
+  const unsubscribe = port.subscribeSettlementChannel((message) => {
+    broadcasts.push(message);
+    finance = financeSubscriberReducer(finance, message);
+  });
+  const freshPage = approve(
+    workbenchReducer(createInitialWorkbenchState('hero-overlap-splicer'), {
+      type: 'SET_APPROVER',
+      approverId: 'USR-SUPPORT-LEAD',
+    }),
+  );
+  const replay = await runCommitCommand(port, freshPage);
+  assert.equal(replay.type === 'COMMIT_SETTLED' && replay.result.idempotentReplay, true);
+  assert.deepEqual(
+    broadcasts.map((message) => [message.event.claimKey, message.event.status]),
+    [['JSM-402', 'SETTLED']],
+  );
+  const financeView = selectClaimSettlement(finance, 'JSM-402');
+  assert.equal(financeView.status, 'SETTLED');
+  assert.equal(financeView.settledReceipt?.receiptId, 'RCPT-JSM-402-2026-11-NET75M');
+  assert.equal(financeView.approverId, 'USR-OTHER-JUDGE');
+  unsubscribe();
+});
+
+test('AC2 regression (review F-02): an answer for the previous claim that lands after a scenario switch updates only that claim and leaves the new approval and banner alone', () => {
+  let state = approve(
+    workbenchReducer(createInitialWorkbenchState('hero-overlap-splicer'), {
+      type: 'SET_APPROVER',
+      approverId: 'USR-QA',
+    }),
+  );
+  state = workbenchReducer(state, { type: 'ACTION_STARTED', pendingAction: 'commit' });
+  state = approve(workbenchReducer(state, { type: 'SELECT_SCENARIO', scenarioId: 'monthly-cap-truncation' }));
+  const capApproval = { checked: true, proposalVersionKey: 'CCLOCK-JSM-425-2026-11-NET60M-CRED80000-VEND80000' };
+  assert.deepEqual(state.approval, capApproval);
+
+  const lateRejection = workbenchReducer(state, {
+    type: 'ACTION_REJECTED',
+    result: staleCommitRejection('hero-overlap-splicer'),
+  });
+  assert.equal(lateRejection.errorBanner, null);
+  assert.deepEqual(lateRejection.approval, capApproval);
+  assert.equal(lateRejection.pendingAction, null);
+
+  const heroKey = selectPreviewReceipt(createInitialWorkbenchState('hero-overlap-splicer')).proposalVersionKey;
+  const heroSettled = executeClauseClockAction(createClauseClockStore(), 'commit-credit-settlement', {
+    scenarioId: 'hero-overlap-splicer',
+    expectedProposalVersionKey: heroKey,
+    approverId: 'USR-QA',
+    approvalToken: `APPROVAL::${heroKey}::USR-QA`,
+  });
+  const lateSettlement = workbenchReducer(state, { type: 'COMMIT_SETTLED', result: heroSettled });
+  assert.equal(selectClaimSettlement(lateSettlement, 'JSM-402').status, 'SETTLED');
+  assert.deepEqual(lateSettlement.approval, capApproval);
+
+  // Positive control: the same kind of answer for the claim on screen still raises the banner and voids approval.
+  const ownRejection = workbenchReducer(state, {
+    type: 'ACTION_REJECTED',
+    result: staleCommitRejection('monthly-cap-truncation'),
+  });
+  assert.equal(ownRejection.errorBanner?.code, 'STALE_PROPOSAL_VERSION_KEY');
+  assert.deepEqual(ownRejection.approval, { checked: false, proposalVersionKey: null });
 });
