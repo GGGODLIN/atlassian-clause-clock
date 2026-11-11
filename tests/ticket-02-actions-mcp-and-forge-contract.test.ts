@@ -316,7 +316,7 @@ test('Role 1.5: Teamwork Graph & Jira REST query builders enforce first <= 25 an
   });
   assert.equal(defaultGraphQuery.variables.first, 20);
   assert.ok(defaultGraphQuery.variables.first <= 25);
-  assert.ok(defaultGraphQuery.query.includes('requestTeamworkGraph') || defaultGraphQuery.query.includes('linkedIssues'));
+  assert.ok(defaultGraphQuery.query.includes('cypherQuery'));
 
   const clampedGraphQuery = buildTeamworkGraphIncidentQuery({
     issueAri: 'ari:cloud:jira:site-1:issue/10402',
@@ -374,7 +374,7 @@ test('Role 1.6: validateForgeManifestAndSkillContract verifies manifest.yml, ski
   assert.equal(report.valid, true);
   assert.deepEqual(report.errors, []);
   assert.equal(report.hasGraphConnector, false);
-  assert.equal(report.singleFunctionHandlerKey, 'clause-clock-action-router');
+  assert.equal(report.singleFunctionHandlerKey, 'clause-clock-router');
   assert.deepEqual(report.declaredModules, [
     'jira:issuePanel',
     'jira:globalPage',

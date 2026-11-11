@@ -1,3 +1,5 @@
+import { Temporal } from '@js-temporal/polyfill';
+
 const USD = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
@@ -39,21 +41,19 @@ function pad2(value: number): string {
   return String(value).padStart(2, '0');
 }
 
-// Minute 0 is midnight of the billing month in the billing timezone, so UTC arithmetic yields billing-local wall-clock time.
-export function billingClockParts(billingMonth: string, minute: number): BillingClockParts {
-  const [yearText, monthText] = billingMonth.split('-');
-  const instant = new Date(Date.UTC(Number(yearText), Number(monthText) - 1, 1) + minute * 60_000);
-  const isoDate = `${instant.getUTCFullYear()}-${pad2(instant.getUTCMonth() + 1)}-${pad2(instant.getUTCDate())}`;
+export function billingClockParts(billingMonth: string, minute: number, timezone = 'UTC'): BillingClockParts {
+  const origin = Temporal.PlainYearMonth.from(billingMonth).toPlainDate({ day: 1 }).toZonedDateTime(timezone);
+  const instant = origin.add({ minutes: minute });
   return {
-    isoDate,
-    monthDay: `${MONTH_ABBREVIATIONS[instant.getUTCMonth()]} ${pad2(instant.getUTCDate())}`,
-    time: `${pad2(instant.getUTCHours())}:${pad2(instant.getUTCMinutes())}`,
+    isoDate: instant.toPlainDate().toString(),
+    monthDay: `${MONTH_ABBREVIATIONS[instant.month - 1]} ${pad2(instant.day)}`,
+    time: `${pad2(instant.hour)}:${pad2(instant.minute)}`,
   };
 }
 
-export function formatBillingRange(billingMonth: string, startMinute: number, endMinute: number): string {
-  const start = billingClockParts(billingMonth, startMinute);
-  const end = billingClockParts(billingMonth, endMinute);
+export function formatBillingRange(billingMonth: string, startMinute: number, endMinute: number, timezone = 'UTC'): string {
+  const start = billingClockParts(billingMonth, startMinute, timezone);
+  const end = billingClockParts(billingMonth, endMinute, timezone);
   const endLabel = end.isoDate === start.isoDate ? end.time : `${end.isoDate} ${end.time}`;
   return `${start.isoDate} ${start.time} → ${endLabel}`;
 }

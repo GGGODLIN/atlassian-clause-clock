@@ -84,6 +84,7 @@ export interface ForgeRealtimeEvent {
 }
 
 export interface ClauseClockStore {
+  scenariosById?: Map<string, ClauseClockScenario>;
   settlementStatusByClaimKey: Map<string, SettlementStatus>;
   capLedger: Map<string, CapLedgerEntry>;
   jsmInternalNotes: JsmInternalNote[];

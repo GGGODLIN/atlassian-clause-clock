@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parse } from 'yaml';
 import { CLAUSE_CLOCK_ACTION_KEYS } from './clause-clock-store.ts';
 
 export interface ForgeContractValidationReport {
@@ -61,7 +62,8 @@ function parseSkillFrontmatter(skillMarkdown: string): {
   const nameMatch = /^name:\s*(.+)$/m.exec(frontmatter);
   const skillName = nameMatch?.[1]?.trim() ?? null;
 
-  const allowedTools: string[] = [];
+  const inlineTools = /^allowed-tools:\s+(.+)$/m.exec(frontmatter)?.[1];
+  const allowedTools: string[] = inlineTools?.trim().split(/\s+/) ?? [];
   const lines = frontmatter.split(/\r?\n/);
   let inAllowedTools = false;
   for (const line of lines) {
@@ -168,6 +170,24 @@ export function validateForgeManifestAndSkillContract(options?: {
   const manifestYaml = options?.manifestYaml ?? readForgeManifestYaml();
   const skillMarkdown = options?.skillMarkdown ?? readSkillMarkdown();
   const errors: string[] = [];
+  try {
+    const document = parse(manifestYaml);
+    const modules = document.modules ?? {};
+    const skill = modules['rovo:skill']?.[0];
+    const mcp = modules['rovo:mcp']?.[0];
+    if (skill?.source?.dir !== 'skills/clause-clock' || !Array.isArray(skill?.dependencies?.tools)
+      || JSON.stringify(skill.dependencies.tools) !== JSON.stringify(CLAUSE_CLOCK_ACTION_KEYS)) errors.push('rovo:skill must declare source.dir and dependencies.tools.');
+    if (JSON.stringify(mcp?.tools) !== JSON.stringify(CLAUSE_CLOCK_ACTION_KEYS)) errors.push('rovo:mcp must expose the registered action keys through tools.');
+    for (const action of modules.action ?? []) {
+      for (const input of Object.values(action.inputs ?? {}) as Record<string, unknown>[]) {
+        if (typeof input.title !== 'string' || typeof input.description !== 'string' || typeof input.type !== 'string' || typeof input.required !== 'boolean') errors.push(`Action ${action.key} has an invalid input descriptor.`);
+      }
+    }
+    if ((modules.function ?? []).some((fn: { key: string; handler: string }) => fn.key.length > 23 || fn.handler !== 'index.routeClauseClockForgeAction')) errors.push('Forge function key or handler is invalid.');
+    if (document.resources?.[0]?.path !== 'static/clause-clock-ui') errors.push('Custom UI resource must point to the Forge build output.');
+  } catch {
+    errors.push('Invalid Forge manifest YAML.');
+  }
 
   const {
     hasGraphConnector,

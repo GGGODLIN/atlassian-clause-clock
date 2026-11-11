@@ -1,3 +1,4 @@
+import { Temporal } from '@js-temporal/polyfill';
 import type {
   BitmapOracleInput,
   BitmapOracleResult,
@@ -46,20 +47,19 @@ export function isValidIanaTimezone(timezone: string): boolean {
 }
 
 export function resolveTimezoneOffsetMinutes(timezone: string): number {
-  const normalized = timezone.trim();
-  if (!isValidIanaTimezone(normalized) || normalized === 'UTC' || normalized === 'Etc/UTC' || normalized === 'GMT') {
-    return 0;
-  }
-  try {
-    const refDate = new Date(Date.UTC(2026, 10, 1, 12, 0, 0));
-    const utcStr = refDate.toLocaleString('en-US', { timeZone: 'UTC' });
-    const tzStr = refDate.toLocaleString('en-US', { timeZone: normalized });
-    const diffMs = new Date(tzStr).getTime() - new Date(utcStr).getTime();
-    const diffMin = Math.round(diffMs / 60000);
-    return Number.isFinite(diffMin) ? diffMin : 0;
-  } catch {
-    return 0;
-  }
+  if (!isValidIanaTimezone(timezone)) return 0;
+  return Temporal.Instant.from('2026-11-01T12:00:00Z').toZonedDateTimeISO(timezone).offsetNanoseconds / 60_000_000_000;
+}
+
+export function resolveBillingWindow(billingMonth: string, timezone: string): {
+  startEpochMinute: number;
+  endEpochMinute: number;
+  totalMinutes: number;
+} {
+  const firstDay = Temporal.PlainYearMonth.from(billingMonth).toPlainDate({ day: 1 });
+  const start = firstDay.toZonedDateTime(timezone).epochMilliseconds / 60000;
+  const end = firstDay.add({ months: 1 }).toZonedDateTime(timezone).epochMilliseconds / 60000;
+  return { startEpochMinute: start, endEpochMinute: end, totalMinutes: end - start };
 }
 
 export function sumIntervalMinutes(intervals: readonly HalfOpenInterval[]): number {
@@ -292,10 +292,10 @@ export function intersectIntervals(
 export function evaluateBitmapOracle(params: BitmapOracleInput): BitmapOracleResult {
   const windowMinutes = Math.max(
     0,
-    Math.min(MAX_BILLING_MONTH_MINUTES, Math.floor(params.billingMonthTotalMinutes)),
+    Math.min(MAX_BILLING_MONTH_MINUTES + 1440, Math.floor(params.billingMonthTotalMinutes)),
   );
-  const incidentBitmap = new Uint8Array(MAX_BILLING_MONTH_MINUTES);
-  const maintenanceBitmap = new Uint8Array(MAX_BILLING_MONTH_MINUTES);
+  const incidentBitmap = new Uint8Array(windowMinutes);
+  const maintenanceBitmap = new Uint8Array(windowMinutes);
 
   for (const inc of params.incidents) {
     if (inc.included === false) {
@@ -334,11 +334,11 @@ export function evaluateBitmapOracle(params: BitmapOracleInput): BitmapOracleRes
     }
   }
 
-  const vendorUnionBitmap = new Uint8Array(MAX_BILLING_MONTH_MINUTES);
+  const vendorUnionBitmap = new Uint8Array(windowMinutes);
   const vendorOverlapMinutesByVendorId: Record<string, number> = {};
 
   for (const vendor of params.vendorFeeds ?? []) {
-    const vendorBitmap = new Uint8Array(MAX_BILLING_MONTH_MINUTES);
+    const vendorBitmap = new Uint8Array(windowMinutes);
     for (const interval of vendor.intervals) {
       if (interval.included === false) {
         continue;
@@ -644,11 +644,6 @@ export function reconcileClauseClock(
   options?: ReconcileOptions,
 ): CalculationReceipt {
   const contract = scenario.contract;
-  const billingMonthTotalMinutes = Math.max(
-    1,
-    Math.min(MAX_BILLING_MONTH_MINUTES, Math.floor(contract.billingMonthTotalMinutes)),
-  );
-
   const rawContractCandidate = contract.billingTimezone?.trim();
   const rawContractTimezone =
     rawContractCandidate && isValidIanaTimezone(rawContractCandidate)
@@ -660,10 +655,13 @@ export function reconcileClauseClock(
       ? overrideCandidate
       : undefined;
   const missingTimezoneFallback = !rawContractTimezone && !overrideTimezone;
-  const billingTimezone = overrideTimezone || rawContractTimezone || 'UTC';
-  const baseTimezone = rawContractTimezone || 'UTC';
-  const shiftMinutes =
-    resolveTimezoneOffsetMinutes(baseTimezone) - resolveTimezoneOffsetMinutes(billingTimezone);
+  const billingTimezone = overrideTimezone ?? rawContractTimezone ?? 'UTC';
+  const baseTimezone = rawContractTimezone ?? 'UTC';
+  const baseWindow = resolveBillingWindow(contract.billingMonth, baseTimezone);
+  const billingWindow = resolveBillingWindow(contract.billingMonth, billingTimezone);
+  const billingMonthTotalMinutes = billingWindow.totalMinutes;
+  // Minutes are elapsed physical time from the contract timezone's month start; offsets can change within the month.
+  const shiftMinutes = baseWindow.startEpochMinute - billingWindow.startEpochMinute;
 
   const disabledIncidentSet = new Set(options?.disabledIncidentIds ?? []);
   const disabledMaintenanceSet = new Set(options?.disabledMaintenanceIds ?? []);

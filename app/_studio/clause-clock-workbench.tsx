@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useReducer } from 'react';
+import { reconcileClauseClock } from '../../src/core/clause-clock-engine.ts';
+import type { ClauseClockScenario } from '../../src/core/clause-clock-types.ts';
 import { ChronographSubdials } from './chronograph-subdials.tsx';
 import { EdgeCaseBanners } from './edge-case-banners.tsx';
 import type { ClauseClockHostPort, SkillContractSnapshot } from './host-port.ts';
@@ -31,6 +33,7 @@ import {
 
 export interface ClauseClockWorkbenchProps {
   hostPort: ClauseClockHostPort;
+  scenariosById?: Readonly<Record<string, ClauseClockScenario>>;
   initialScenarioId?: string;
   initialSkillContract?: SkillContractSnapshot | null;
   initialSettlements?: SettlementMap;
@@ -49,6 +52,7 @@ function seedWorkbench({ scenarioId, settlements }: WorkbenchSeed) {
 // Custom UI bundle (jira:issuePanel / jira:globalPage) can mount this exact tree.
 export function ClauseClockWorkbench({
   hostPort,
+  scenariosById,
   initialScenarioId,
   initialSkillContract = null,
   initialSettlements,
@@ -59,10 +63,13 @@ export function ClauseClockWorkbench({
     seedWorkbench,
   );
   const { scenarioId, timezoneOverride, disabledIncidentIds, disabledMaintenanceIds } = state;
-  const scenario = selectScenario(state);
+  const scenario = scenariosById?.[scenarioId] ?? selectScenario(state);
   const preview = useMemo(
-    () => selectPreviewReceipt({ scenarioId, timezoneOverride, disabledIncidentIds, disabledMaintenanceIds }),
-    [scenarioId, timezoneOverride, disabledIncidentIds, disabledMaintenanceIds],
+    () => scenariosById ? reconcileClauseClock(scenario, {
+      timezoneOverride: timezoneOverride ?? undefined,
+      disabledIncidentIds: [...disabledIncidentIds], disabledMaintenanceIds: [...disabledMaintenanceIds],
+    }) : selectPreviewReceipt({ scenarioId, timezoneOverride, disabledIncidentIds, disabledMaintenanceIds }),
+    [scenario, scenariosById, scenarioId, timezoneOverride, disabledIncidentIds, disabledMaintenanceIds],
   );
   const waterfall = useMemo(() => buildIntervalWaterfall(scenario, preview), [scenario, preview]);
   const mcpDefaultArguments = useMemo(

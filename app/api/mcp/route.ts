@@ -10,109 +10,9 @@ import {
   reconcileClauseClock,
 } from '../../../src/core/index.ts';
 
-export interface McpToolDescriptor {
-  name: (typeof CLAUSE_CLOCK_ACTION_KEYS)[number];
-  actionVerb: 'GET' | 'CREATE' | 'UPDATE';
-  description: string;
-  inputSchema: {
-    type: 'object';
-    properties: Record<string, { type: string; description: string }>;
-    required?: string[];
-  };
-}
-
-export const CLAUSE_CLOCK_MCP_TOOLS: readonly McpToolDescriptor[] = [
-  {
-    name: 'evaluate-clause-clock',
-    actionVerb: 'GET',
-    description:
-      'Evaluates a JSM SLA claim across overlapping incidents, maintenance exclusions, billing timezones, monthly credit caps, and upstream vendor outage feeds.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        scenarioId: {
-          type: 'string',
-          description:
-            'Seeded scenario ID or JSM claim key (e.g. hero-overlap-splicer or JSM-402).',
-        },
-        timezoneOverride: {
-          type: 'string',
-          description: 'Optional IANA timezone override (e.g. UTC or America/Los_Angeles).',
-        },
-      },
-    },
-  },
-  {
-    name: 'run-pbt-audit',
-    actionVerb: 'GET',
-    description:
-      'Runs fast-check Property-Based Testing across P1..P4 invariants against the Uint8Array(44640) minute bitmap oracle.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        numRuns: {
-          type: 'number',
-          description: 'Number of randomized scenarios to execute (10..500).',
-        },
-        seed: {
-          type: 'number',
-          description: 'Deterministic PRNG seed.',
-        },
-      },
-    },
-  },
-  {
-    name: 'commit-credit-settlement',
-    actionVerb: 'CREATE',
-    description:
-      'Commits an approved SLA credit and vendor recovery receipt after validating expectedProposalVersionKey and APPROVAL::<proposalVersionKey>::<approverId>.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        scenarioId: {
-          type: 'string',
-          description: 'Target scenario ID or JSM claim key.',
-        },
-        expectedProposalVersionKey: {
-          type: 'string',
-          description: 'Readable version key from the latest evaluate-clause-clock receipt.',
-        },
-        approverId: {
-          type: 'string',
-          description: 'Human approver identifier.',
-        },
-        approvalToken: {
-          type: 'string',
-          description: 'Human confirmation token: APPROVAL::<proposalVersionKey>::<approverId>.',
-        },
-        financeOverrideReason: {
-          type: 'string',
-          description: 'Required when committing a contract in DRAFT status.',
-        },
-      },
-      required: ['expectedProposalVersionKey', 'approverId', 'approvalToken'],
-    },
-  },
-  {
-    name: 'reset-settlement-state',
-    actionVerb: 'UPDATE',
-    description:
-      'Restores a settled claim and its monthly cap ledger balance back to the pre-settlement READY state.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        scenarioId: {
-          type: 'string',
-          description: 'Scenario ID or JSM claim key to reset.',
-        },
-        resetAll: {
-          type: 'boolean',
-          description: 'When true, resets all claims in the store.',
-        },
-      },
-    },
-  },
-];
+import { CLAUSE_CLOCK_MCP_TOOLS } from '../../../src/mcp-tools.ts';
+export { CLAUSE_CLOCK_MCP_TOOLS } from '../../../src/mcp-tools.ts';
+export type { McpToolDescriptor } from '../../../src/mcp-tools.ts';
 
 export async function GET(_request?: Request): Promise<Response> {
   const skillMarkdown = readSkillMarkdown();
@@ -133,6 +33,54 @@ export async function GET(_request?: Request): Promise<Response> {
   );
 }
 
+const SKILL_RESOURCE_URI = 'clause-clock://skills/clause-clock';
+
+function handleJsonRpc(record: Record<string, unknown>): Response {
+  const id = typeof record.id === 'string' || typeof record.id === 'number' ? record.id : null;
+  const error = (code: number, message: string): Response => Response.json({ jsonrpc: '2.0', id, error: { code, message } });
+  if (record.jsonrpc !== '2.0' || typeof record.method !== 'string' || ('id' in record && id === null)) {
+    return error(-32600, 'Invalid JSON-RPC request');
+  }
+  if (!('id' in record)) return new Response(null, { status: 202 });
+  const params = typeof record.params === 'object' && record.params !== null && !Array.isArray(record.params)
+    ? record.params as Record<string, unknown> : undefined;
+  const respond = (result: unknown): Response => Response.json({ jsonrpc: '2.0', id, result });
+  switch (record.method) {
+    case 'initialize': {
+      if (!params || typeof params.protocolVersion !== 'string' || !params.clientInfo || !params.capabilities) return error(-32602, 'Invalid initialize params');
+      const supported = ['2025-03-26', '2025-06-18', '2025-11-25'];
+      return respond({
+        protocolVersion: supported.includes(params.protocolVersion) ? params.protocolVersion : '2025-06-18',
+        capabilities: { tools: {}, resources: {} },
+        serverInfo: { name: 'clause-clock-mcp-server', version: '0.1.0' },
+      });
+    }
+    case 'ping': return respond({});
+    case 'tools/list': return respond({ tools: CLAUSE_CLOCK_MCP_TOOLS });
+    case 'resources/list': return respond({ resources: [{ uri: SKILL_RESOURCE_URI, name: 'clause-clock', description: 'Portable ClauseClock skill contract', mimeType: 'text/markdown' }] });
+    case 'resources/read':
+      if (!params || typeof params.uri !== 'string') return error(-32602, 'Resource uri is required');
+      if (params.uri !== SKILL_RESOURCE_URI) return error(-32002, 'Resource not found');
+      return respond({ contents: [{ uri: SKILL_RESOURCE_URI, mimeType: 'text/markdown', text: readSkillMarkdown() }] });
+    case 'tools/call': {
+      if (!params || typeof params.name !== 'string' || (params.arguments !== undefined && (typeof params.arguments !== 'object' || params.arguments === null || Array.isArray(params.arguments)))) return error(-32602, 'Invalid tool params');
+      if (!(CLAUSE_CLOCK_ACTION_KEYS as readonly string[]).includes(params.name)) return error(-32602, 'Unknown tool');
+      const tool = CLAUSE_CLOCK_MCP_TOOLS.find(tool => tool.name === params.name);
+      const args = (params.arguments ?? {}) as Record<string, unknown>;
+      for (const required of tool?.inputSchema.required ?? []) {
+        if (!(required in args)) return error(-32602, `Missing tool argument: ${required}`);
+      }
+      for (const [key, value] of Object.entries(args)) {
+        const type = tool?.inputSchema.properties[key]?.type;
+        if (type && typeof value !== type) return error(-32602, `Invalid tool argument: ${key}`);
+      }
+      const result = executeClauseClockAction(getDefaultClauseClockStore(), params.name, args);
+      return respond({ content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: result, isError: !result.ok });
+    }
+    default: return error(-32601, 'Method not found');
+  }
+}
+
 export async function POST(request: Request): Promise<Response> {
   const store = getDefaultClauseClockStore();
   const defaultFooter = reconcileClauseClock(
@@ -145,6 +93,7 @@ export async function POST(request: Request): Promise<Response> {
   } catch {
     return Response.json(
       {
+        jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' },
         ok: false,
         status: 400,
         errorCode: 'MALFORMED_ACTION_PAYLOAD',
@@ -158,6 +107,7 @@ export async function POST(request: Request): Promise<Response> {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
     return Response.json(
       {
+        jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Invalid Request' },
         ok: false,
         status: 400,
         errorCode: 'MALFORMED_ACTION_PAYLOAD',
@@ -169,6 +119,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const record = body as Record<string, unknown>;
+  if ('jsonrpc' in record) return handleJsonRpc(record);
   const method = typeof record.method === 'string' ? record.method : 'tools/call';
 
   if (method === 'tools/list') {

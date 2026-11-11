@@ -9,11 +9,12 @@ interface IntervalSwitchProps {
   testId: 'incident-toggle' | 'maintenance-toggle';
   interval: HalfOpenInterval;
   billingMonth: string;
+  billingTimezone: string;
   enabled: boolean;
   onToggle: (id: string) => void;
 }
 
-function IntervalSwitch({ testId, interval, billingMonth, enabled, onToggle }: IntervalSwitchProps) {
+function IntervalSwitch({ testId, interval, billingMonth, billingTimezone, enabled, onToggle }: IntervalSwitchProps) {
   return (
     <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-rule bg-paper px-3 py-2.5 transition-colors hover:border-ink/30">
       <input
@@ -30,7 +31,7 @@ function IntervalSwitch({ testId, interval, billingMonth, enabled, onToggle }: I
           {interval.label}
         </span>
         <span className="block font-mono text-[11px] text-steel">
-          {formatBillingRange(billingMonth, interval.startMinute, interval.endMinute)} ·{' '}
+          {formatBillingRange(billingMonth, interval.startMinute, interval.endMinute, billingTimezone)} ·{' '}
           {formatMinutes(interval.endMinute - interval.startMinute)} · contract clock
         </span>
       </span>
@@ -96,6 +97,7 @@ export function IntervalInputs({
             testId="incident-toggle"
             interval={incident}
             billingMonth={billingMonth}
+            billingTimezone={scenario.contract.billingTimezone ?? 'UTC'}
             enabled={!disabledIncidents.has(incident.id)}
             onToggle={onToggleIncident}
           />
@@ -117,6 +119,7 @@ export function IntervalInputs({
               testId="maintenance-toggle"
               interval={maintenance}
               billingMonth={billingMonth}
+            billingTimezone={scenario.contract.billingTimezone ?? 'UTC'}
               enabled={!disabledMaintenance.has(maintenance.id)}
               onToggle={onToggleMaintenance}
             />

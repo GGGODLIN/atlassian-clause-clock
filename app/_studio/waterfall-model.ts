@@ -1,4 +1,4 @@
-import { resolveTimezoneOffsetMinutes } from '../../src/core/clause-clock-engine.ts';
+import { resolveBillingWindow } from '../../src/core/clause-clock-engine.ts';
 import type {
   CalculationReceipt,
   ClauseClockScenario,
@@ -84,15 +84,14 @@ function packRows(bars: readonly WaterfallBar[]): { segments: WaterfallBar[]; ro
   return { segments, rowCount: Math.max(1, rowEnds.length) };
 }
 
-// The engine shifts every window by contract-offset minus billing-offset before clipping; the raw and ghost lanes
-// replay that shift so they line up with the clipped ledger slices the receipt already carries.
+// Raw and ghost lanes use the same physical month origins as the receipt engine.
 export function buildIntervalWaterfall(
   scenario: ClauseClockScenario,
   receipt: CalculationReceipt,
 ): IntervalWaterfallModel {
-  const contractTimezone = scenario.contract.billingTimezone?.trim() || 'UTC';
-  const shiftMinutes =
-    resolveTimezoneOffsetMinutes(contractTimezone) - resolveTimezoneOffsetMinutes(receipt.billingTimezone);
+  const contractTimezone = scenario.contract.billingTimezone?.trim() ?? 'UTC';
+  const shiftMinutes = resolveBillingWindow(receipt.billingMonth, contractTimezone).startEpochMinute
+    - resolveBillingWindow(receipt.billingMonth, receipt.billingTimezone).startEpochMinute;
   const ledger = receipt.intervalLedger;
   const math = receipt.mathBreakdown;
 
@@ -135,7 +134,7 @@ export function buildIntervalWaterfall(
   const ticks: WaterfallTick[] = [];
   let previousDay: string | null = null;
   for (let minute = domainStartMinute; minute <= domainEndMinute; minute += step) {
-    const parts = billingClockParts(receipt.billingMonth, minute);
+    const parts = billingClockParts(receipt.billingMonth, minute, receipt.billingTimezone);
     ticks.push({
       minute,
       leftPct: toPct(minute),
@@ -228,7 +227,9 @@ export function buildIntervalWaterfall(
   return {
     domainStartMinute,
     domainEndMinute,
-    monthStartPct: domainStartMinute < 0 && domainEndMinute > 0 ? toPct(0) : null,
+    monthStartPct: domainStartMinute < 0 && domainEndMinute > 0 ? toPct(0)
+      : domainStartMinute < receipt.inputsSnapshot.billingMonthTotalMinutes && domainEndMinute > receipt.inputsSnapshot.billingMonthTotalMinutes
+        ? toPct(receipt.inputsSnapshot.billingMonthTotalMinutes) : null,
     ticks,
     tracks,
   };

@@ -40,7 +40,8 @@ test('Role 1.1: Hero scenario (hero-overlap-splicer) folds overlapping incidents
   );
 
   // Uptime & SLA tier checks: (43200 - 75) / 43200 = 99.8264% -> 10% tier (1000 bps)
-  assert.equal(receipt.mathBreakdown.uptimePercentage, 99.8264);
+  assert.equal(receipt.inputsSnapshot.billingMonthTotalMinutes, 43260);
+  assert.equal(receipt.mathBreakdown.uptimePercentage, 99.8266);
   assert.equal(receipt.mathBreakdown.matchedTier.creditBps, 1000);
   assert.equal(receipt.mathBreakdown.grossCreditCents, 200000);
   assert.equal(receipt.mathBreakdown.priorApprovedCents, 50000);

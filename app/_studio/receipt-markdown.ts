@@ -87,14 +87,14 @@ function customerCreditReceipt(receipt: CalculationReceipt, status: SettlementSt
   ].join('\n');
 }
 
-// Internal absorption stays out of this vendor-facing document; each vendor sees its own overlap evidence and claim.
+// This export groups every vendor's claim; internal absorption figures stay in the finance ledger.
 function vendorRecoveryClaim(receipt: CalculationReceipt): string {
   const math = receipt.mathBreakdown;
   const vendorSections = receipt.vendorApportionments.flatMap((vendor) => {
     const windows =
       vendor.overlapIntervals.length > 0
         ? vendor.overlapIntervals
-            .map((interval) => formatBillingRange(receipt.billingMonth, interval.startMinute, interval.endMinute))
+            .map((interval) => formatBillingRange(receipt.billingMonth, interval.startMinute, interval.endMinute, receipt.billingTimezone))
             .join(', ')
         : 'none';
     return [

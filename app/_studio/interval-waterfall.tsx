@@ -99,7 +99,7 @@ export interface IntervalWaterfallProps {
 
 export function IntervalWaterfall({ model, receipt, provisionalDraft }: IntervalWaterfallProps) {
   const describe = (bar: WaterfallBar): string =>
-    `${bar.label} · ${formatBillingRange(receipt.billingMonth, bar.startMinute, bar.endMinute)} (${formatMinutes(bar.endMinute - bar.startMinute)})`;
+    `${bar.label} · ${formatBillingRange(receipt.billingMonth, bar.startMinute, bar.endMinute, receipt.billingTimezone)} (${formatMinutes(bar.endMinute - bar.startMinute)})`;
 
   return (
     <section
@@ -215,8 +215,8 @@ export function IntervalWaterfall({ model, receipt, provisionalDraft }: Interval
 
         {model.monthStartPct !== null ? (
           <p className="mt-3 font-mono text-[11px] text-signal">
-            ┆ dashed red rule = billing month opens ({receipt.billingMonth}-01 00:00 {receipt.billingTimezone}); hatched raw
-            minutes left of it are clipped
+            ┆ dashed red rule = billing month boundary ({receipt.billingMonth} · {receipt.billingTimezone}); hatched
+            minutes outside the month are clipped
           </p>
         ) : null}
       </div>

@@ -5,7 +5,9 @@ build/
 dist/
 .worktrees/
 .claude/worktrees/
-.scratch/clause-clock/dispatch-opus-*/receipts/
+.scratch/
+static/clause-clock-ui/
+src/forge/skill-markdown.ts
 next-env.d.ts
 *.tsbuildinfo
 .DS_Store

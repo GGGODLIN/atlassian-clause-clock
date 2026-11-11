@@ -444,13 +444,13 @@ test('AC3 (Story 2 & 3): edge-case banners cover the missing timezone switcher, 
   assert.match(customerMarkdown, /JSM-402/);
   assert.match(customerMarkdown, /Acme Global Retail/);
   assert.match(customerMarkdown, /75m/);
-  assert.match(customerMarkdown, /99\.8264%/);
+  assert.match(customerMarkdown, /99\.8266%/);
   assert.match(customerMarkdown, /\$1,500\.00/);
   assert.match(customerMarkdown, /RCPT-JSM-402-2026-11-NET75M/);
 
   assert.match(vendorMarkdown, /CloudEdge Transit/);
   assert.match(vendorMarkdown, /45m/);
-  assert.match(vendorMarkdown, /2026-11-01 10:00 → 10:45/);
+  assert.match(vendorMarkdown, /2026-11-01 09:00 → 09:45/);
   assert.match(vendorMarkdown, /\$900\.00/);
   assert.match(vendorMarkdown, /RCPT-JSM-402-2026-11-NET75M/);
 
@@ -581,7 +581,7 @@ test('AC5 (Story 2 & 5): the Rovo MCP & SKILL.md Live Inspector shows the live S
   const skillViewer = getByTestId(inspector.innerHtml, 'skill-md-viewer');
   assert.match(skillViewer.text, /name: clause-clock/);
   for (const actionKey of CLAUSE_CLOCK_ACTION_KEYS) {
-    assert.match(skillViewer.text, new RegExp(`- ${actionKey}`));
+    assert.match(skillViewer.text, new RegExp(`allowed-tools:.*${actionKey}`));
   }
   assert.equal(getByTestId(inspector.innerHtml, 'skill-contract-status').attributes['data-valid'], 'true');
   const toolCards = findAllByTestId(inspector.innerHtml, 'mcp-tool');

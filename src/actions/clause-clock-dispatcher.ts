@@ -87,21 +87,9 @@ export function buildTeamworkGraphIncidentQuery(params: {
   const clampedFirst = Math.min(25, Math.max(1, requestedFirst));
 
   const query = [
-    'query ClauseClockIncidentContext($issueAri: ID!, $first: Int!) {',
-    '  requestTeamworkGraph {',
-    '    linkedIssues: workItemByAri(ari: $issueAri) {',
-    '      ari',
-    '      key',
-    '      relationships(first: $first) {',
-    '        edges {',
-    '          node {',
-    '            relationshipType',
-    '            targetKey',
-    '            targetType',
-    '          }',
-    '        }',
-    '      }',
-    '    }',
+    'query ClauseClockIncidentContext($cypherQuery: String!, $params: CypherRequestParams) {',
+    '  cypherQuery(query: $cypherQuery, params: $params) {',
+    '    edges { node { columns { key value { __typename ... on CypherQueryResultNode { id data { __typename ... on JiraWorkItem { summary } } } } } } }',
     '  }',
     '}',
   ].join('\n');
@@ -120,8 +108,6 @@ export const PRUNED_JIRA_REST_FIELDS = [
   'status',
   'created',
   'resolutiondate',
-  'customfield_sla_start',
-  'customfield_sla_end',
 ] as const;
 
 export function buildPrunedJiraRestUrl(params: { issueKey: string }): string {
@@ -246,7 +232,7 @@ function evaluateScenarioAgainstStore(
         ? payload.claimKey.trim()
         : undefined;
 
-  const baseScenario = getSeededScenario(scenarioIdOrClaimKey);
+  const baseScenario = store.scenariosById?.get(scenarioIdOrClaimKey ?? '') ?? getSeededScenario(scenarioIdOrClaimKey);
   const ledgerEntry = ensureCapLedgerEntry(store, baseScenario);
   const claimKey = baseScenario.contract.claimKey;
 
