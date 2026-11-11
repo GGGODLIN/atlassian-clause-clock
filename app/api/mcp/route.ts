@@ -11,10 +11,8 @@ import {
 } from '../../../src/core/index.ts';
 
 import { CLAUSE_CLOCK_MCP_TOOLS } from '../../../src/mcp-tools.ts';
-export { CLAUSE_CLOCK_MCP_TOOLS } from '../../../src/mcp-tools.ts';
-export type { McpToolDescriptor } from '../../../src/mcp-tools.ts';
 
-export async function GET(_request?: Request): Promise<Response> {
+export async function GET(_request: Request): Promise<Response> {
   const skillMarkdown = readSkillMarkdown();
   const contractValidation = validateForgeManifestAndSkillContract({
     skillMarkdown,

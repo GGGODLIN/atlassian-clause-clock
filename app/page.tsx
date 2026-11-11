@@ -9,7 +9,7 @@ import { GET as readMcpServerDescriptor } from './api/mcp/route.ts';
 export const dynamic = 'force-dynamic';
 
 export default async function ClauseClockStudioPage() {
-  const descriptor = await readMcpServerDescriptor();
+  const descriptor = await readMcpServerDescriptor(new Request('http://localhost/api/mcp'));
   const initialSkillContract = parseSkillContractSnapshot(await descriptor.json());
   return (
     <main>
