@@ -1,6 +1,6 @@
 # Forge deployment and live data
 
-The source checkout is unregistered. Its placeholder app ID is intentionally not a deployed app. Build and package checks run locally; registration, production deployment and installation require the owner’s Atlassian account.
+ClauseClock is registered on Atlassian Forge (`ari:cloud:ecosystem::app/cd62612f-32bd-404d-bc40-be4be9903daa`, Developer Space `GGGODLIN Labs`), deployed to `production` (`v2.0.0`, `Runs on Atlassian` eligible, KVS entity `clause-clock-account` `ACTIVE`), and shared for installation via the signed Developer Console link in [the submission writeup](/devpost/DEVPOST_SUBMISSION.md).
 
 ## Deploy
 
@@ -27,7 +27,7 @@ The Forge issue panel uses its trusted issue context. The global page and action
 The handler reads:
 
 - Jira issue fields `summary,status,created,resolutiondate` through `asApp().requestJira`.
-- Related Jira work items through `asUser().requestTeamworkGraph`, using the official Cypher-backed GraphQL response shape. The app declares `read:graph:jira`; Graph access also depends on the current user and site.
+- Related Jira work items through `asUser().requestTeamworkGraph`, using the official Cypher-backed GraphQL response shape. The app declares `read:graph:issue:jira`; Graph access also depends on the current user and site.
 - The validated `clauseclock.scenario` property for authoritative contract, incident, maintenance and vendor windows. Graph relationships provide related-work context; they do not invent billing durations or amounts.
 
 If the issue/property is absent or the Graph request fails, the receipt says `SEEDED_FIXTURE` and includes its fallback reason. The seeded ledger is isolated from the live ledger and never writes fixture claims into Jira.

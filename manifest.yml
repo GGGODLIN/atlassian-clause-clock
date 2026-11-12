@@ -97,7 +97,8 @@ modules:
       name: Commit Credit Settlement (Human Approval Gate)
       function: clause-clock-router
       actionVerb: CREATE
-      description: Save the approved ledger and pending delivery atomically in KVS, then deliver Jira/JSM records and a realtime refresh event.
+      description: Save the approved ledger and pending delivery atomically in KVS,
+        then deliver Jira/JSM records and a realtime refresh event.
       inputs:
         scenarioId:
           title: Scenario
@@ -154,7 +155,7 @@ permissions:
   scopes:
     - read:jira-work
     - write:jira-work
-    - read:graph:jira
+    - read:graph:issue:jira
     - read:servicedesk-request
     - write:servicedesk-request
     - storage:app
@@ -168,7 +169,7 @@ app:
     path: build/forge
   runtime:
     name: nodejs22.x
-  id: ari:cloud:ecosystem::app/00000000-0000-4000-8000-000000000000
+  id: ari:cloud:ecosystem::app/cd62612f-32bd-404d-bc40-be4be9903daa
   storage:
     entities:
       - name: clause-clock-account
