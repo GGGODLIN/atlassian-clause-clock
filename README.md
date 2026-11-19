@@ -96,12 +96,14 @@ Open `http://localhost:3000` to explore the **ClauseClock** 5-Track Workbench, 3
 ```bash
 npm run build:forge-ui
 npm run verify:forge
-npx forge register ClauseClock --personal
+# Subsequent deployments for the registered app:
 npx forge deploy -e production
 npx forge install -e production -p Jira -s YOUR-SITE.atlassian.net
+# First-time registration under a new Atlassian account only (replaces manifest app ID):
+# npx forge register ClauseClock --personal
 ```
 
-`forge register` replaces the explicitly unregistered placeholder app ID in the manifest. Registration, deployment, consent and the installation link require the owner's Atlassian account and have not been run in this checkout. The local verifier uses the official CLI's manifest validator and runtime packager without uploading the app. The CLI's `forge lint` command requires login.
+`manifest.yml` is already registered to Atlassian Forge app ID `ari:cloud:ecosystem::app/cd62612f-32bd-404d-bc40-be4be9903daa` (Developer Space `GGGODLIN Labs`). Skip `forge register` on subsequent deployments against this app; only run `forge register` if registering a separate copy under another Atlassian account. The local verifier uses the official CLI's manifest validator and runtime packager without uploading the app. The CLI's `forge lint` command requires login.
 
 Custom UI reuses the Web Studio workbench. Its bridge invokes the same four actions through `src/index.ts`; its KVS ledger survives cold invocations. For live data, the handler reads the current Jira issue, the `clauseclock.scenario` entity property (validated structured scenario JSON), and related work items using `api.asUser().requestTeamworkGraph`. Jira REST calls use `asApp()`. Missing issues, missing properties or unavailable Graph access produce a labeled seeded receipt. Seeded accounts never write to real Jira issues. [Live scenario contract and deployment details](/docs/FORGE_DEPLOYMENT.md).
 

@@ -4,11 +4,13 @@ ClauseClock is registered on Atlassian Forge (`ari:cloud:ecosystem::app/cd62612f
 
 ## Deploy
 
-After authenticating with `npx forge login`, run this from the repository root:
+After authenticating with `npx forge login`, run this from the repository root for subsequent deployments of the registered app (`ari:cloud:ecosystem::app/cd62612f-32bd-404d-bc40-be4be9903daa`):
 
 ```bash
-npm run build:forge-ui && npm run verify:forge && npx forge register ClauseClock --personal && npx forge deploy -e production
+npm run build:forge-ui && npm run verify:forge && npx forge deploy -e production
 ```
+
+For first-time registration of a new copy under a different Atlassian account only, run `npx forge register ClauseClock --personal` before `forge deploy`.
 
 Then install on a Jira Service Management test site:
 
